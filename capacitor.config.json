@@ -1,0 +1,14 @@
+
+{
+  "appId": "com.madrasati.app",
+  "appName": "نظام مدرستي",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "backgroundColor": "#f2f2f7"
+  }
+}
