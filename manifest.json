@@ -1,13 +1,19 @@
-
 {
   "name": "نظام مدرستي لإدارة الطلاب",
   "short_name": "مدرستي",
   "description": "تطبيق متكامل لإدارة حضور وغياب الطلاب، تسجيل السلوكيات، وإصدار التقارير.",
-  "start_url": ".",
+  "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f2f2f7",
-  "theme_color": "#2563eb",
+  "theme_color": "#f2f2f7",
+  "scope": ".",
   "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
     {
       "src": "icon.png",
       "sizes": "512x512",
