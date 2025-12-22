@@ -103,7 +103,8 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
                 {todaySchedule.periods.slice(0, 8).map((p, idx) => (
                    <div key={idx} className={`p-2 rounded-xl text-center border ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
                       <span className="block text-[8px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
-                      <span className="block text-[9px] font-black truncate">{p || '-'}</span>
+                      {/* تكبير الخط هنا */}
+                      <span className="block text-xs font-black truncate leading-tight">{p || '-'}</span>
                    </div>
                 ))}
              </div>
