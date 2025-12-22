@@ -14,7 +14,15 @@ import {
   ChevronLeft,
   GraduationCap,
   School,
-  CheckCircle2
+  CheckCircle2,
+  Settings,
+  Info,
+  Database,
+  Trash2,
+  Phone,
+  Heart,
+  X,
+  Download
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -67,6 +75,7 @@ const App: React.FC = () => {
 
   const [isSetupComplete, setIsSetupComplete] = useState(!!teacherInfo.name && !!teacherInfo.school);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
     try {
@@ -99,6 +108,39 @@ const App: React.FC = () => {
     setStudents(prev => [newStudent, ...prev]);
     if (!classes.includes(className)) {
       setClasses(prev => [...prev, className].sort());
+    }
+  };
+
+  const handleClearAllData = () => {
+    if (confirm('هل أنت متأكد من رغبتك في حذف جميع بيانات الطلاب؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      setStudents([]);
+      setClasses([]);
+      alert('تم حذف جميع البيانات بنجاح.');
+      setShowSettingsModal(false);
+    }
+  };
+
+  const handleBackupData = () => {
+    try {
+      const dataToSave = {
+        teacherInfo,
+        students,
+        classes,
+        schedule,
+        exportDate: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `madrasati_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('حدث خطأ أثناء محاولة حفظ النسخة الاحتياطية.');
     }
   };
 
@@ -137,7 +179,7 @@ const App: React.FC = () => {
                 <p className="text-[10px] font-bold text-slate-400">أ. {teacherInfo.name}</p>
               </div>
           </div>
-          {/* تم إزالة زر الإعدادات لتجنب الأخطاء كما طلبت */}
+          <button onClick={() => setShowSettingsModal(true)} className="w-9 h-9 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center active:bg-slate-100 transition-colors"><Settings className="w-5 h-5" /></button>
         </div>
       </header>
 
@@ -168,12 +210,12 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation with Safe Area */}
+      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-200/50 pb-[var(--sab)] z-50">
         <div className="flex justify-around items-center h-16 max-w-md mx-auto">
           {[
             { id: 'dashboard', icon: BarChart3, label: 'الرئيسية' },
-            { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, // تم تغيير الاسم
+            { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
             { id: 'students', icon: Users, label: 'الطلاب' },
             { id: 'grades', icon: GraduationCap, label: 'الدرجات' },
             { id: 'import', icon: FileUp, label: 'أدوات' },
@@ -191,6 +233,58 @@ const App: React.FC = () => {
           ))}
         </div>
       </nav>
+
+      {/* Settings & Info Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
+           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="absolute top-0 right-0 p-6">
+                 <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-50 rounded-full hover:bg-gray-100"><X className="w-4 h-4 text-gray-500" /></button>
+              </div>
+
+              {/* About Section */}
+              <div className="flex flex-col items-center text-center mb-8 pt-4">
+                 <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-[2rem] flex items-center justify-center mb-4 shadow-xl shadow-blue-200">
+                    <Info className="text-white w-10 h-10" />
+                 </div>
+                 <h2 className="text-lg font-black text-gray-800 mb-1">حول التطبيق</h2>
+                 <div className="bg-blue-50 px-3 py-1 rounded-full mb-4">
+                   <p className="text-[10px] font-black text-blue-600">الإصدار 2.0</p>
+                 </div>
+                 
+                 <div className="space-y-1 mb-6">
+                    <p className="text-xs font-bold text-gray-500">تصميم وتطوير</p>
+                    <h3 className="text-sm font-black text-gray-800">محمد درويش الزعابي</h3>
+                    <div className="flex items-center justify-center gap-1 text-xs font-bold text-gray-400 mt-1">
+                      <Phone className="w-3 h-3" /> <span>98344555</span>
+                    </div>
+                 </div>
+
+                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl w-full mb-6 relative overflow-hidden">
+                    <Heart className="w-16 h-16 text-amber-500/10 absolute -left-4 -bottom-4 rotate-12" />
+                    <p className="text-[11px] font-black text-amber-800 leading-relaxed relative z-10">
+                    "هذا التطبيق عمل خيري وصدقة عن روح والدتي ؛ فأرجو الدعاء لها بالرحمة والمغفرة"
+                    </p>
+                 </div>
+              </div>
+
+              {/* Data Management Section */}
+              <div className="border-t border-gray-100 pt-6 space-y-3">
+                 <h3 className="text-xs font-black text-gray-400 mb-2 flex items-center gap-2"><Database className="w-3.5 h-3.5" /> إدارة البيانات</h3>
+                 
+                 <button onClick={handleBackupData} className="w-full flex items-center justify-between p-4 bg-emerald-50 text-emerald-700 rounded-2xl text-xs font-black hover:bg-emerald-100 active:scale-95 transition-all">
+                    <span>حفظ نسخة من البيانات</span>
+                    <Download className="w-4 h-4" />
+                 </button>
+
+                 <button onClick={handleClearAllData} className="w-full flex items-center justify-between p-4 bg-rose-50 text-rose-700 rounded-2xl text-xs font-black hover:bg-rose-100 active:scale-95 transition-all">
+                    <span>حذف جميع بيانات الطلاب</span>
+                    <Trash2 className="w-4 h-4" />
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
