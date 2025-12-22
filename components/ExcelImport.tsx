@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Student } from '../types';
-import { FileUp, CheckCircle2, FileSpreadsheet, Loader2, AlertCircle, LayoutGrid, Check, Info } from 'lucide-react';
+import { FileUp, CheckCircle2, FileSpreadsheet, Loader2, Info, LayoutGrid, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ExcelImportProps {
@@ -43,41 +42,39 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
           onAddClass(finalTargetClass);
       }
 
-      const headerNames = ['الاسم', 'اسم الطالب', 'اسم', 'Name', 'Student Name', 'Full Name', 'المتعلم', 'اسم المتعلم', 'Student'];
+      // مصفوفات الكلمات الدلالية للبحث عن الأعمدة
+      const nameHeaders = ['الاسم', 'اسم الطالب', 'اسم', 'Name', 'Student Name', 'Full Name', 'المتعلم', 'اسم المتعلم', 'Student'];
+      const phoneHeaders = ['رقم ولي الأمر', 'جوال', 'الهاتف', 'هاتف', 'رقم الجوال', 'رقم الهاتف', 'Phone', 'Mobile', 'Parent Phone', 'Contact'];
+      const gradeHeaders = ['الصف', 'صف', 'Grade', 'Level', 'المرحلة'];
 
       const mappedStudents: Student[] = jsonData
         .map((row, idx) => {
           const rowKeys = Object.keys(row);
-          const nameKey = rowKeys.find(k => {
-            const val = k.trim();
-            return headerNames.includes(val);
-          });
           
-          const gradeKey = rowKeys.find(k => 
-            ['الصف', 'صف', 'Grade', 'Level', 'المرحلة'].includes(k.trim())
-          );
+          const nameKey = rowKeys.find(k => nameHeaders.includes(k.trim()));
+          const phoneKey = rowKeys.find(k => phoneHeaders.includes(k.trim()));
+          const gradeKey = rowKeys.find(k => gradeHeaders.includes(k.trim()));
 
-          let studentClasses: string[] = [finalTargetClass];
-          
           const studentName = String(row[nameKey || ''] || row[rowKeys[0]] || '').trim();
+          const parentPhone = phoneKey ? String(row[phoneKey] || '').trim() : '';
 
           return {
             id: Math.random().toString(36).substr(2, 9),
             name: studentName,
             grade: String(row[gradeKey || ''] || ''),
-            classes: studentClasses,
+            classes: [finalTargetClass],
             attendance: [],
             behaviors: [],
-            grades: []
+            grades: [],
+            parentPhone: parentPhone
           };
         })
         .filter(student => {
-          // الفلتر الذكي: استبعاد العناوين والأسماء الفارغة
-          return student.name !== '' && !headerNames.includes(student.name);
+          return student.name !== '' && !nameHeaders.includes(student.name);
         });
 
       if (mappedStudents.length === 0) {
-        alert('لم يتم العثور على أسماء طلاب صالحة في الملف. تأكد من وجود عمود باسم "الاسم".');
+        alert('لم يتم العثور على أسماء طلاب صالحة. تأكد من وجود عمود باسم "الاسم".');
         setImportStatus('error');
         return;
       }
@@ -90,6 +87,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
     } catch (error) {
       console.error(error);
       setImportStatus('error');
+      alert('حدث خطأ أثناء قراءة الملف. تأكد من أن الملف سليم.');
     } finally {
       setIsImporting(false);
       if (e.target) e.target.value = '';
@@ -97,7 +95,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
       <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 space-y-5">
         <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-gray-900 flex items-center gap-2">
@@ -129,7 +127,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
             </div>
         ) : (
             <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto no-scrollbar p-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                {existingClasses.map(cls => (
+                {existingClasses.length > 0 ? existingClasses.map(cls => (
                     <button
                         key={cls}
                         onClick={() => setTargetClass(cls)}
@@ -138,7 +136,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
                         {cls}
                         {targetClass === cls && <Check className="w-3 h-3" />}
                     </button>
-                ))}
+                )) : <p className="col-span-2 text-center text-[10px] text-gray-400 py-4">لا توجد فصول حالياً، قم بإنشاء فصل جديد.</p>}
             </div>
         )}
       </div>
@@ -154,7 +152,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
         <p className="text-[10px] text-gray-400 mb-6 px-4 relative z-10 font-bold">
             {(isCreatingNew ? newClassInput : targetClass) 
                 ? `سيتم استيراد الطلاب إلى فصل: ${isCreatingNew ? newClassInput : targetClass}`
-                : 'يجب اختيار الفصل أولاً لتفعيل الاستيراد'}
+                : 'يجب اختيار الفصل أولاً لتفعيل الزر'}
         </p>
         
         <label className={`w-full max-w-[200px] relative z-10 ${!(isCreatingNew ? newClassInput : targetClass) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -185,9 +183,13 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
       <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
           <div className="flex gap-2 items-start">
               <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-[9px] text-amber-700 font-bold leading-relaxed">
-                  سيقوم النظام تلقائياً بتنظيف البيانات واستبعاد صف العناوين (مثل كلمة "الاسم") لضمان دقة القائمة.
-              </p>
+              <div className="text-[9px] text-amber-700 font-bold leading-relaxed">
+                  <p>للحصول على أفضل النتائج، تأكد أن ملف الإكسل يحتوي على الأعمدة التالية:</p>
+                  <ul className="list-disc list-inside mt-1">
+                      <li>عمود لاسم الطالب (مثال: "الاسم")</li>
+                      <li>عمود لرقم الجوال (مثال: "جوال")</li>
+                  </ul>
+              </div>
           </div>
       </div>
     </div>
