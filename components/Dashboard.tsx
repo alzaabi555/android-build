@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Student, ScheduleDay } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft } from 'lucide-react';
+import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -10,9 +10,10 @@ interface DashboardProps {
   onUpdateSchedule: (newSchedule: ScheduleDay[]) => void;
   onSelectStudent: (s: Student) => void;
   onNavigate: (tab: string) => void;
+  onOpenSettings: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings }) => {
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   
@@ -69,9 +70,9 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-24">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
-        <div className="relative z-10">
+      {/* Welcome Header with Settings Button */}
+      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden flex justify-between items-center">
+        <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-1 opacity-90">
             <GreetingIcon className={`${greeting.color} w-4 h-4`} />
             <span className="text-[10px] font-black">{greeting.text}</span>
@@ -82,6 +83,15 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
             <p className="text-[10px] font-black">{teacherInfo?.school || 'اسم المدرسة'}</p>
           </div>
         </div>
+        
+        {/* Settings Button Moved Here */}
+        <button 
+            onClick={onOpenSettings} 
+            className="relative z-10 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all border border-white/10 shadow-sm"
+        >
+            <Settings className="w-5 h-5 text-white" />
+        </button>
+
         <Sparkles className="absolute -left-2 -bottom-2 w-16 h-16 opacity-10 rotate-12" />
       </div>
 
