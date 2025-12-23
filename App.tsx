@@ -281,8 +281,11 @@ const App: React.FC = () => {
   };
 
   // وظيفة بدء التطبيق
-  const handleStartApp = () => {
-    setIsSetupComplete(true);
+  const handleStartApp = (e?: React.FormEvent) => {
+    if(e) e.preventDefault();
+    if (teacherInfo.name && teacherInfo.school) {
+        setIsSetupComplete(true);
+    }
   };
 
   if (!isSetupComplete) {
@@ -296,17 +299,47 @@ const App: React.FC = () => {
 
         <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">راصد التعليمي</h1>
         <p className="text-sm text-slate-400 font-bold mb-12 text-center">قم بإعداد هويتك التعليمية للبدء</p>
-        <div className="w-full max-w-sm space-y-5">
+        <form onSubmit={handleStartApp} className="w-full max-w-sm space-y-5">
           <div className="space-y-2">
             <label className="text-[11px] font-black text-slate-400 mr-2">اسم المعلم / المعلمة</label>
-            <input type="text" className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" placeholder="" value={teacherInfo.name} onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})} />
+            <input 
+                type="text" 
+                className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
+                placeholder="" 
+                value={teacherInfo.name} 
+                onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})}
+                autoComplete="off"
+                autoCorrect="off" 
+                required
+            />
           </div>
           <div className="space-y-2">
             <label className="text-[11px] font-black text-slate-400 mr-2">اسم المدرسة</label>
-            <input type="text" className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" placeholder="" value={teacherInfo.school} onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})} />
+            <input 
+                type="text" 
+                className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
+                placeholder="" 
+                value={teacherInfo.school} 
+                onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})}
+                autoComplete="off"
+                autoCorrect="off"
+                required
+            />
           </div>
-          <button onClick={handleStartApp} disabled={!teacherInfo.name || !teacherInfo.school} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all">بدء الاستخدام <CheckCircle2 className="w-5 h-5" /></button>
-        </div>
+          <button 
+            type="submit" 
+            disabled={!teacherInfo.name || !teacherInfo.school} 
+            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all"
+            onTouchEnd={(e) => {
+                // دعم إضافي لأجهزة اللمس التي قد لا تفعل الحدث onClick عند وجود لوحة المفاتيح
+                if (teacherInfo.name && teacherInfo.school) {
+                    handleStartApp();
+                }
+            }}
+          >
+            بدء الاستخدام <CheckCircle2 className="w-5 h-5" />
+          </button>
+        </form>
       </div>
     );
   }
