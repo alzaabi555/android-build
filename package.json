@@ -4,7 +4,7 @@
   "description": "نظام إدارة الطلاب - نسخة الأندرويد والآيفون",
   "main": "index.html",
   "scripts": {
-    "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --external:react --external:react-dom --external:lucide-react --external:recharts --external:xlsx && cp index.html manifest.json icon.png noor_logo.png www/ 2>/dev/null || :",
+    "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --external:react --external:react-dom --external:lucide-react --external:recharts --external:xlsx && cp index.html manifest.json www/ && (cp icon.png www/ || true) && (cp noor_logo.png www/ || true)",
     "prebuild": "mkdir -p www",
     "sync": "npx cap sync",
     "add-android": "npx cap add android",
