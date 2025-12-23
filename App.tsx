@@ -57,6 +57,13 @@ const App: React.FC = () => {
     } catch { return 'dashboard'; }
   });
 
+  const [currentSemester, setCurrentSemester] = useState<'1' | '2'>(() => {
+     try {
+         const saved = localStorage.getItem('currentSemester');
+         return (saved === '1' || saved === '2') ? saved : '1';
+     } catch { return '1'; }
+  });
+
   const [students, setStudents] = useState<Student[]>(() => {
     try {
       const saved = localStorage.getItem('studentData');
@@ -105,32 +112,25 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info'} | null>(null);
 
-  // التعامل مع زر الرجوع في الأندرويد
   useEffect(() => {
     let backButtonListener: any;
     const setupBackButton = async () => {
       try {
         backButtonListener = await CapApp.addListener('backButton', ({ canGoBack }) => {
             if (showSettingsModal) {
-                // إذا كانت الإعدادات مفتوحة، أغلقها
                 setShowSettingsModal(false);
             } else if (activeTab !== 'dashboard') {
-                // إذا كنت في تبويب آخر، عد للرئيسية
                 setActiveTab('dashboard');
             } else {
-                // إذا كنت في الرئيسية، اخرج من التطبيق
                 CapApp.exitApp();
             }
         });
       } catch (e) {
-        // تجاهل الخطأ في المتصفح العادي
+        // تجاهل الخطأ
       }
     };
     setupBackButton();
-
-    return () => {
-       if(backButtonListener) backButtonListener.remove();
-    };
+    return () => { if(backButtonListener) backButtonListener.remove(); };
   }, [showSettingsModal, activeTab]);
 
   useEffect(() => {
@@ -142,10 +142,11 @@ const App: React.FC = () => {
       localStorage.setItem('schoolName', teacherInfo.school);
       localStorage.setItem('scheduleData', JSON.stringify(schedule));
       localStorage.setItem('viewSheetUrl', viewSheetUrl);
+      localStorage.setItem('currentSemester', currentSemester);
     } catch (e) {
       console.warn("Storage restricted", e);
     }
-  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl]);
+  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester]);
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
@@ -169,7 +170,7 @@ const App: React.FC = () => {
   };
 
   const handleClearAllData = () => {
-    if (confirm('هل أنت متأكد من رغبتك في حذف جميع بيانات الطلاب؟ لا يمكن التراجع عن هذا الإجراء.')) {
+    if (confirm('هل أنت متأكد من رغبتك في حذف جميع بيانات الطلاب؟')) {
       setStudents([]);
       setClasses([]);
       setToast({ message: 'تم حذف البيانات', type: 'success' });
@@ -179,30 +180,16 @@ const App: React.FC = () => {
 
   const handleBackupData = async () => {
     try {
-      const dataToSave = {
-        teacherInfo,
-        students,
-        classes,
-        schedule,
-        exportDate: new Date().toISOString()
-      };
-      
+      const dataToSave = { teacherInfo, students, classes, schedule, exportDate: new Date().toISOString() };
       const fileName = `madrasati_backup_${new Date().toISOString().split('T')[0]}.json`;
       const file = new File([JSON.stringify(dataToSave, null, 2)], fileName, { type: 'application/json' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
-          await navigator.share({
-            files: [file],
-            title: 'نسخة احتياطية - مدرستي',
-            text: 'نسخة احتياطية من بيانات تطبيق مدرستي',
-          });
+          await navigator.share({ files: [file], title: 'نسخة احتياطية', text: 'نسخة احتياطية من بيانات تطبيق مدرستي' });
           return;
-        } catch (shareError) {
-          console.log('Share cancelled or failed', shareError);
-        }
+        } catch (shareError) { console.log('Share cancelled', shareError); }
       }
-
       const url = URL.createObjectURL(file);
       const a = document.createElement('a');
       a.href = url;
@@ -211,93 +198,81 @@ const App: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (error) {
-      setToast({ message: 'فشل إنشاء النسخة الاحتياطية', type: 'error' });
-    }
+    } catch (error) { setToast({ message: 'فشل إنشاء النسخة', type: 'error' }); }
   };
 
   const handleRestoreData = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!confirm('سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف. هل أنت متأكد؟')) {
-        if(e.target) e.target.value = '';
-        return;
-    }
+    if (!confirm('سيتم استبدال البيانات الحالية. هل أنت متأكد؟')) { if(e.target) e.target.value = ''; return; }
 
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
             const json = JSON.parse(event.target?.result as string);
-            
-            if (!json.students || !Array.isArray(json.students)) {
-                throw new Error('ملف غير صالح');
-            }
-
+            if (!json.students || !Array.isArray(json.students)) throw new Error('ملف غير صالح');
             setTeacherInfo(json.teacherInfo || { name: '', school: '' });
             setStudents(json.students || []);
             setClasses(json.classes || []);
             setSchedule(json.schedule || []);
-            
-            setToast({ message: 'تم استعادة البيانات بنجاح', type: 'success' });
+            setToast({ message: 'تم استعادة البيانات', type: 'success' });
             setShowSettingsModal(false);
-        } catch (error) {
-            setToast({ message: 'ملف البيانات غير صالح', type: 'error' });
-        }
+        } catch (error) { setToast({ message: 'ملف غير صالح', type: 'error' }); }
     };
     reader.readAsText(file);
     if(e.target) e.target.value = '';
   };
 
   const handleExportForGoogleSheets = () => {
-      let csvContent = "\uFEFFالاسم,الفصل,النوع,التاريخ,التفاصيل,القيمة/الحالة\n";
+      try {
+          let csvContent = "\uFEFFالاسم,الفصل,النوع,التاريخ,التفاصيل,القيمة/الحالة\n";
+          
+          if (!students || students.length === 0) {
+              setToast({ message: 'لا توجد بيانات لتصديرها', type: 'info' });
+              return;
+          }
 
-      students.forEach(student => {
-          const className = student.classes[0] || 'عام';
-          student.attendance.forEach(att => {
-              let statusAr = '';
-              if (att.status === 'present') statusAr = 'حاضر';
-              else if (att.status === 'absent') statusAr = 'غائب';
-              else if (att.status === 'late') statusAr = 'تأخير';
-              
-              csvContent += `"${student.name}","${className}","حضور","${att.date}","${statusAr}","${att.status}"\n`;
+          students.forEach(student => {
+              const className = student.classes[0] || 'عام';
+              student.attendance.forEach(att => {
+                  const statusAr = att.status === 'present' ? 'حاضر' : att.status === 'absent' ? 'غائب' : 'تأخير';
+                  csvContent += `"${student.name}","${className}","حضور","${att.date}","${statusAr}","${att.status}"\n`;
+              });
+              student.behaviors.forEach(beh => {
+                  const typeAr = beh.type === 'positive' ? 'سلوك إيجابي' : 'سلوك سلبي';
+                  csvContent += `"${student.name}","${className}","${typeAr}","${beh.date}","${beh.description}","${beh.points}"\n`;
+              });
           });
-          student.behaviors.forEach(beh => {
-              const typeAr = beh.type === 'positive' ? 'سلوك إيجابي' : 'سلوك سلبي';
-              csvContent += `"${student.name}","${className}","${typeAr}","${beh.date}","${beh.description}","${beh.points}"\n`;
-          });
-      });
-
-      const fileName = `google_sheets_data_${new Date().toISOString().split('T')[0]}.csv`;
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+          const fileName = `data_${new Date().toISOString().split('T')[0]}.csv`;
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setToast({ message: 'تم تجهيز ملف التصدير', type: 'success' });
+      } catch (e) {
+          console.error(e);
+          setToast({ message: 'حدث خطأ أثناء التصدير', type: 'error' });
+      }
   };
 
-  // وظيفة بدء التطبيق
   const handleStartApp = (e?: React.FormEvent) => {
     if(e) e.preventDefault();
-    if (teacherInfo.name && teacherInfo.school) {
-        setIsSetupComplete(true);
-    }
+    setIsSetupComplete(true);
   };
 
   if (!isSetupComplete) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-white px-8 animate-in fade-in duration-700" style={{direction: 'rtl'}}>
-        {/* استخدام أيقونة التطبيق بدلاً من الأيقونة العامة */}
         <div className="mb-8 p-4 rounded-3xl shadow-xl shadow-blue-100 bg-white ring-4 ring-blue-50">
            <img src="icon.png" className="w-24 h-24 object-contain" alt="شعار التطبيق" onError={(e) => { e.currentTarget.src = ''; e.currentTarget.className='hidden'; }} />
            <School className="text-blue-600 w-16 h-16 hidden first:block" /> 
         </div>
 
-        <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">راصد التعليمي</h1>
+        <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">راصد</h1>
         <p className="text-sm text-slate-400 font-bold mb-12 text-center">قم بإعداد هويتك التعليمية للبدء</p>
         <form onSubmit={handleStartApp} className="w-full max-w-sm space-y-5">
           <div className="space-y-2">
@@ -309,8 +284,6 @@ const App: React.FC = () => {
                 value={teacherInfo.name} 
                 onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})}
                 autoComplete="off"
-                autoCorrect="off" 
-                required
             />
           </div>
           <div className="space-y-2">
@@ -322,20 +295,12 @@ const App: React.FC = () => {
                 value={teacherInfo.school} 
                 onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})}
                 autoComplete="off"
-                autoCorrect="off"
-                required
             />
           </div>
           <button 
             type="submit" 
             disabled={!teacherInfo.name || !teacherInfo.school} 
             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all"
-            onTouchEnd={(e) => {
-                // دعم إضافي لأجهزة اللمس التي قد لا تفعل الحدث onClick عند وجود لوحة المفاتيح
-                if (teacherInfo.name && teacherInfo.school) {
-                    handleStartApp();
-                }
-            }}
           >
             بدء الاستخدام <CheckCircle2 className="w-5 h-5" />
           </button>
@@ -348,21 +313,22 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-[#f2f2f7]" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Header */}
+      {/* Header Updated: Reduced height, used Icon */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40 pt-[var(--sat)] transition-all">
-        <div className="px-5 h-16 flex justify-between items-center max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-100">ر</div>
-              <div>
-                <h1 className="text-[13px] font-black text-slate-800 leading-tight truncate max-w-[250px]">{teacherInfo.school}</h1>
-                <p className="text-[10px] font-bold text-slate-400">أ. {teacherInfo.name}</p>
+        <div className="px-4 h-14 flex justify-between items-center max-w-7xl mx-auto w-full">
+          <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm border border-gray-100">
+                  <img src="icon.png" className="w-full h-full object-cover" alt="راصد" />
+              </div>
+              <div className="flex flex-col justify-center">
+                <h1 className="text-[11px] font-black text-slate-800 leading-tight truncate max-w-[200px]">{teacherInfo.school}</h1>
+                <p className="text-[9px] font-bold text-slate-400 leading-tight">أ. {teacherInfo.name}</p>
               </div>
           </div>
-          <button onClick={() => setShowSettingsModal(true)} className="w-9 h-9 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center active:bg-slate-100 transition-colors"><Settings className="w-5 h-5" /></button>
+          <button onClick={() => setShowSettingsModal(true)} className="w-8 h-8 bg-slate-50 text-slate-400 rounded-lg flex items-center justify-center active:bg-slate-100 transition-colors"><Settings className="w-4 h-4" /></button>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 px-4 py-4 overflow-y-auto pb-[calc(80px+var(--sab))]">
         <div className="max-w-7xl mx-auto h-full">
           <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -394,6 +360,8 @@ const App: React.FC = () => {
                 classes={classes} 
                 onUpdateStudent={handleUpdateStudent}
                 setStudents={setStudents}
+                currentSemester={currentSemester}
+                onSemesterChange={setCurrentSemester}
               />
             )}
             {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
@@ -408,7 +376,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-200/50 pb-[var(--sab)] z-50">
         <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
           {[
@@ -432,7 +399,6 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -465,7 +431,6 @@ const App: React.FC = () => {
 
               <div className="overflow-y-auto pr-1 space-y-4 custom-scrollbar flex-1">
                  
-                 {/* Data Management */}
                  <div className="border-t border-gray-100 pt-4 space-y-2">
                     <h3 className="text-xs font-black text-gray-400 mb-2 flex items-center gap-2"><Database className="w-3.5 h-3.5" /> إدارة البيانات</h3>
                     

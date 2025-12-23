@@ -35,6 +35,7 @@ export interface GradeRecord {
   score: number;
   maxScore: number;
   date: string;
+  semester: '1' | '2'; // 1 for First Semester, 2 for Second Semester
 }
 
 export interface ScheduleDay {
