@@ -16,7 +16,6 @@ import {
   GraduationCap,
   School,
   CheckCircle2,
-  Settings,
   Info,
   Database,
   Trash2,
@@ -27,8 +26,6 @@ import {
   Share,
   Globe,
   Upload,
-  Link as LinkIcon,
-  FileSpreadsheet,
   AlertTriangle
 } from 'lucide-react';
 
@@ -42,7 +39,7 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
   const bg = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
 
   return (
-    <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-xl z-[200] flex items-center gap-2 animate-in slide-in-from-top-2 duration-300`}>
+    <div className={`fixed top-12 left-1/2 transform -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-xl z-[200] flex items-center gap-2 animate-in slide-in-from-top-2 duration-300`}>
       {type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <Info className="w-4 h-4" />}
       <span className="text-xs font-black">{message}</span>
     </div>
@@ -223,42 +220,6 @@ const App: React.FC = () => {
     if(e.target) e.target.value = '';
   };
 
-  const handleExportForGoogleSheets = () => {
-      try {
-          let csvContent = "\uFEFFالاسم,الفصل,النوع,التاريخ,التفاصيل,القيمة/الحالة\n";
-          
-          if (!students || students.length === 0) {
-              setToast({ message: 'لا توجد بيانات لتصديرها', type: 'info' });
-              return;
-          }
-
-          students.forEach(student => {
-              const className = student.classes[0] || 'عام';
-              student.attendance.forEach(att => {
-                  const statusAr = att.status === 'present' ? 'حاضر' : att.status === 'absent' ? 'غائب' : 'تأخير';
-                  csvContent += `"${student.name}","${className}","حضور","${att.date}","${statusAr}","${att.status}"\n`;
-              });
-              student.behaviors.forEach(beh => {
-                  const typeAr = beh.type === 'positive' ? 'سلوك إيجابي' : 'سلوك سلبي';
-                  csvContent += `"${student.name}","${className}","${typeAr}","${beh.date}","${beh.description}","${beh.points}"\n`;
-              });
-          });
-          const fileName = `data_${new Date().toISOString().split('T')[0]}.csv`;
-          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", fileName);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setToast({ message: 'تم تجهيز ملف التصدير', type: 'success' });
-      } catch (e) {
-          console.error(e);
-          setToast({ message: 'حدث خطأ أثناء التصدير', type: 'error' });
-      }
-  };
-
   const handleStartApp = (e?: React.FormEvent) => {
     if(e) e.preventDefault();
     setIsSetupComplete(true);
@@ -313,23 +274,8 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-[#f2f2f7]" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Header Updated: Reduced height, used Icon */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-40 pt-[var(--sat)] transition-all">
-        <div className="px-4 h-14 flex justify-between items-center max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm border border-gray-100">
-                  <img src="icon.png" className="w-full h-full object-cover" alt="راصد" />
-              </div>
-              <div className="flex flex-col justify-center">
-                <h1 className="text-[11px] font-black text-slate-800 leading-tight truncate max-w-[200px]">{teacherInfo.school}</h1>
-                <p className="text-[9px] font-bold text-slate-400 leading-tight">أ. {teacherInfo.name}</p>
-              </div>
-          </div>
-          <button onClick={() => setShowSettingsModal(true)} className="w-8 h-8 bg-slate-50 text-slate-400 rounded-lg flex items-center justify-center active:bg-slate-100 transition-colors"><Settings className="w-4 h-4" /></button>
-        </div>
-      </header>
-
-      <main className="flex-1 px-4 py-4 overflow-y-auto pb-[calc(80px+var(--sab))]">
+      {/* Main Content: INCREASED paddingTop significantly to push content down from notch - Changed from 3.5rem to 5rem for better Android support */}
+      <main className="flex-1 px-4 overflow-y-auto pb-[calc(60px+var(--sab))] pt-[calc(5rem+var(--sat))]">
         <div className="max-w-7xl mx-auto h-full">
           <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
             {activeTab === 'dashboard' && (
@@ -340,6 +286,7 @@ const App: React.FC = () => {
                 onUpdateSchedule={setSchedule}
                 onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
                 onNavigate={(tab) => setActiveTab(tab)}
+                onOpenSettings={() => setShowSettingsModal(true)}
               />
             )}
             {activeTab === 'students' && (
@@ -376,8 +323,9 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-200/50 pb-[var(--sab)] z-50">
-        <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+      {/* Smaller Bottom Navbar */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-200/50 pb-[var(--sab)] z-50">
+        <div className="flex justify-around items-center h-12 max-w-lg mx-auto">
           {[
             { id: 'dashboard', icon: BarChart3, label: 'الرئيسية' },
             { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
@@ -388,12 +336,12 @@ const App: React.FC = () => {
             <button 
               key={item.id} 
               onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center gap-1 w-full h-full transition-all duration-300 ${activeTab === item.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-500'}`}
+              className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all duration-300 ${activeTab === item.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-500'}`}
             >
-              <div className={`p-1 rounded-xl transition-all ${activeTab === item.id ? 'bg-blue-50 transform -translate-y-1' : ''}`}>
-                 <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+              <div className={`p-1 rounded-xl transition-all ${activeTab === item.id ? 'bg-blue-50 transform -translate-y-0.5' : ''}`}>
+                 <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
               </div>
-              <span className={`text-[9px] font-black transition-opacity ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>{item.label}</span>
+              <span className={`text-[8px] font-black transition-opacity ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>{item.label}</span>
             </button>
           ))}
         </div>
@@ -434,11 +382,6 @@ const App: React.FC = () => {
                  <div className="border-t border-gray-100 pt-4 space-y-2">
                     <h3 className="text-xs font-black text-gray-400 mb-2 flex items-center gap-2"><Database className="w-3.5 h-3.5" /> إدارة البيانات</h3>
                     
-                    <button onClick={handleExportForGoogleSheets} className="w-full flex items-center justify-between p-3.5 bg-gray-50 text-gray-700 rounded-2xl text-[11px] font-black hover:bg-gray-100 active:scale-95 transition-all">
-                        <span>تصدير ملف CSV (إكسل)</span>
-                        <FileSpreadsheet className="w-4 h-4" />
-                    </button>
-
                     <button onClick={handleBackupData} className="w-full flex items-center justify-between p-3.5 bg-blue-50 text-blue-700 rounded-2xl text-[11px] font-black hover:bg-blue-100 active:scale-95 transition-all">
                         <span>حفظ نسخة احتياطية (نسخ شامل)</span>
                         {navigator.canShare ? <Share className="w-4 h-4" /> : <Download className="w-4 h-4" />}

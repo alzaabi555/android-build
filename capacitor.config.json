@@ -1,6 +1,6 @@
 {
   "appId": "com.madrasati.app",
-  "appName": "راصد التعليمي",
+  "appName": "راصد",
   "webDir": "www",
   "server": {
     "androidScheme": "https",
