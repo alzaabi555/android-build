@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>نظام مدرستي</title>
+  <title>راصد التعليمي</title>
   
-  <!-- إعدادات أيقونة التطبيق (يجب توفر ملف icon.png في المجلد الرئيسي) -->
-  <link rel="icon" type="image/png" href="icon.png">
-  <link rel="apple-touch-icon" href="icon.png">
+  <!-- إعدادات أيقونة التطبيق - تم إضافة v=3 لفرض التحديث -->
+  <link rel="icon" type="image/png" href="icon.png?v=3">
+  <link rel="apple-touch-icon" href="icon.png?v=3">
   
   <!-- إعدادات iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="مدرستي">
+  <meta name="apple-mobile-web-app-title" content="راصد">
   
   <!-- إعدادات Android الأساسية للتثبيت -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -27,15 +27,20 @@
       --sat: env(safe-area-inset-top, 20px); 
       --sab: env(safe-area-inset-bottom, 20px); 
     }
+    html {
+      -webkit-text-size-adjust: 100%; /* منع تكبير النص في الايفون */
+      text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
     body { 
       font-family: 'Tajawal', sans-serif; 
       background-color: #f2f2f7; 
       margin: 0; padding: 0; 
       height: 100vh; width: 100vw;
       overflow: hidden;
-      -webkit-tap-highlight-color: transparent;
       -webkit-user-select: none;
       user-select: none;
+      font-size: 14px; /* تثبيت حجم الخط الأساسي */
     }
     #initial-loader {
       position: fixed; inset: 0; background: #f2f2f7; 
@@ -63,8 +68,10 @@
     "lucide-react": "https://esm.sh/lucide-react@0.454.0?deps=react@18.2.0",
     "recharts": "https://esm.sh/recharts@2.12.7?deps=react@18.2.0,react-dom@18.2.0",
     "xlsx": "https://esm.sh/xlsx@0.18.5",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "@capacitor/core": "https://esm.sh/@capacitor/core@6.2.0",
+    "@capacitor/app": "https://esm.sh/@capacitor/app@^8.0.0"
   }
 }
 </script>

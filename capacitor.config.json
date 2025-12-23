@@ -1,14 +1,30 @@
-
 {
   "appId": "com.madrasati.app",
-  "appName": "نظام مدرستي",
+  "appName": "راصد التعليمي",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": [
+      "*",
+      "*.moe.gov.om",
+      "mobile.moe.gov.om",
+      "lms.moe.gov.om"
+    ]
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   },
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
     "backgroundColor": "#f2f2f7"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#f2f2f7",
+    "allowsBackForwardNavigationGestures": true
   }
 }

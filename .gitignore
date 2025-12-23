@@ -1,24 +1,23 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Dependencies
+node_modules/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Production
+dist/
+build/
+www/
+
+# Misc
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.env
+.vscode/
+*.log
+
+# Capacitor - Keep android and ios folders to preserve native configs
+# but ignore generated build outputs inside them
+android/app/build/
+android/.gradle/
+ios/App/App.xcarchive/
+
+# Ensure assets are tracked
+!assets/
