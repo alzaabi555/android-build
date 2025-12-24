@@ -1,15 +1,22 @@
 {
   "name": "student-manager-app",
   "version": "1.0.0",
-  "description": "نظام إدارة الطلاب - نسخة الأندرويد والآيفون",
-  "main": "index.html",
+  "description": "تطبيق راصد لإدارة حضور وغياب الطلاب وتسجيل السلوكيات",
+  "author": {
+    "name": "Mohammed Darwish Al-Zaabi",
+    "email": "developer@example.com"
+  },
+  "main": "electron/main.js",
   "scripts": {
     "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --external:react --external:react-dom --external:lucide-react --external:recharts --external:xlsx && cp index.html manifest.json www/ && (cp icon.png www/ || true) && (cp noor_logo.png www/ || true)",
     "prebuild": "mkdir -p www",
     "sync": "npx cap sync",
     "add-android": "npx cap add android",
     "open-android": "npx cap open android",
-    "generate-icons": "npx capacitor-assets generate"
+    "generate-icons": "npx capacitor-assets generate",
+    "electron:start": "npm run build && electron .",
+    "electron:pack": "npm run build && electron-builder --dir",
+    "electron:dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
@@ -26,6 +33,49 @@
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",
     "@capacitor/assets": "^3.0.5",
-    "esbuild": "^0.24.2"
+    "esbuild": "^0.24.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.madrasati.app",
+    "productName": "راصد",
+    "copyright": "Copyright © 2024 Mohammed Darwish Al-Zaabi",
+    "files": [
+      "www/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "legalTrademarks": "Rased App",
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "راصد",
+      "uninstallDisplayName": "راصد - إزالة التثبيت",
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png",
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "icon.png",
+      "category": "Education"
+    }
   }
 }

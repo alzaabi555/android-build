@@ -36,10 +36,10 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bg = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-blue-600';
+  const bg = type === 'success' ? 'bg-emerald-600/90' : type === 'error' ? 'bg-rose-600/90' : 'bg-blue-600/90';
 
   return (
-    <div className={`fixed top-12 left-1/2 transform -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-xl z-[200] flex items-center gap-2 animate-in slide-in-from-top-2 duration-300`}>
+    <div className={`fixed top-safe left-1/2 transform -translate-x-1/2 ${bg} backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-2 animate-in slide-in-from-top-2 duration-300 border border-white/10 mt-4`}>
       {type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <Info className="w-4 h-4" />}
       <span className="text-xs font-black">{message}</span>
     </div>
@@ -130,19 +130,30 @@ const App: React.FC = () => {
     return () => { if(backButtonListener) backButtonListener.remove(); };
   }, [showSettingsModal, activeTab]);
 
+  // Save data on change
   useEffect(() => {
-    try {
-      localStorage.setItem('studentData', JSON.stringify(students));
-      localStorage.setItem('classesData', JSON.stringify(classes));
-      localStorage.setItem('activeTab', activeTab);
-      localStorage.setItem('teacherName', teacherInfo.name);
-      localStorage.setItem('schoolName', teacherInfo.school);
-      localStorage.setItem('scheduleData', JSON.stringify(schedule));
-      localStorage.setItem('viewSheetUrl', viewSheetUrl);
-      localStorage.setItem('currentSemester', currentSemester);
-    } catch (e) {
-      console.warn("Storage restricted", e);
-    }
+    const saveData = () => {
+        try {
+            localStorage.setItem('studentData', JSON.stringify(students));
+            localStorage.setItem('classesData', JSON.stringify(classes));
+            localStorage.setItem('activeTab', activeTab);
+            localStorage.setItem('teacherName', teacherInfo.name);
+            localStorage.setItem('schoolName', teacherInfo.school);
+            localStorage.setItem('scheduleData', JSON.stringify(schedule));
+            localStorage.setItem('viewSheetUrl', viewSheetUrl);
+            localStorage.setItem('currentSemester', currentSemester);
+        } catch (e) {
+            console.warn("Storage restricted", e);
+        }
+    };
+
+    saveData();
+
+    // إضافة مستمع لحدث إغلاق الصفحة (مهم لنسخة الكمبيوتر)
+    window.addEventListener('beforeunload', saveData);
+    return () => {
+        window.removeEventListener('beforeunload', saveData);
+    };
   }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester]);
 
   const handleUpdateStudent = (updatedStudent: Student) => {
@@ -225,6 +236,15 @@ const App: React.FC = () => {
     setIsSetupComplete(true);
   };
 
+  // Nav Items Configuration
+  const navItems = [
+    { id: 'dashboard', icon: BarChart3, label: 'الرئيسية' },
+    { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
+    { id: 'students', icon: Users, label: 'الطلاب' },
+    { id: 'grades', icon: GraduationCap, label: 'الدرجات' },
+    { id: 'noor', icon: Globe, label: 'نور' },
+  ];
+
   if (!isSetupComplete) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-white px-8 animate-in fade-in duration-700" style={{direction: 'rtl'}}>
@@ -271,129 +291,163 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#f2f2f7]" style={{direction: 'rtl'}}>
+    <div className="flex h-screen bg-[#f2f2f7] overflow-hidden" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Main Content: INCREASED paddingTop significantly to push content down from notch - Changed from 3.5rem to 5rem for better Android support */}
-      <main className="flex-1 px-4 overflow-y-auto pb-[calc(60px+var(--sab))] pt-[calc(5rem+var(--sat))]">
-        <div className="max-w-7xl mx-auto h-full">
-          <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
-            {activeTab === 'dashboard' && (
-              <Dashboard 
-                students={students} 
-                teacherInfo={teacherInfo} 
-                schedule={schedule}
-                onUpdateSchedule={setSchedule}
-                onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
-                onNavigate={(tab) => setActiveTab(tab)}
-                onOpenSettings={() => setShowSettingsModal(true)}
-              />
-            )}
-            {activeTab === 'students' && (
-              <StudentList 
-                students={students} 
-                classes={classes} 
-                onAddClass={(c) => setClasses(prev => [...prev, c].sort())} 
-                onAddStudentManually={handleAddStudentManually} 
-                onUpdateStudent={handleUpdateStudent} 
-                onViewReport={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }}
-                onSwitchToImport={() => setActiveTab('import')}
-              />
-            )}
-            {activeTab === 'attendance' && <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />}
-            {activeTab === 'grades' && (
-              <GradeBook 
-                students={students} 
-                classes={classes} 
-                onUpdateStudent={handleUpdateStudent}
-                setStudents={setStudents}
-                currentSemester={currentSemester}
-                onSemesterChange={setCurrentSemester}
-              />
-            )}
-            {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
-            {activeTab === 'noor' && <NoorPlatform />}
-            {activeTab === 'report' && selectedStudentId && (
-              <div className="animate-in slide-in-from-right duration-300 max-w-3xl mx-auto">
-                <button onClick={() => setActiveTab('students')} className="mb-4 flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 w-fit px-3 py-1.5 rounded-full"><ChevronLeft className="w-4 h-4" /> العودة للقائمة</button>
-                <StudentReport student={students.find(s => s.id === selectedStudentId)!} />
-              </div>
-            )}
-          </Suspense>
-        </div>
-      </main>
+      {/* DESKTOP SIDEBAR (Visible ONLY on md and up) */}
+      <aside className="hidden md:flex w-64 bg-white border-l border-gray-200 flex-col h-full shrink-0 z-20">
+         <div className="p-6 flex flex-col items-center border-b border-gray-100">
+             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
+               <img src="icon.png" className="w-12 h-12 object-contain" alt="Logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+               <School className="w-8 h-8 text-blue-600 hidden first:block" />
+             </div>
+             <h2 className="text-lg font-black text-gray-800">راصد</h2>
+             <p className="text-[10px] font-bold text-gray-400">{teacherInfo.school}</p>
+         </div>
 
-      {/* Smaller Bottom Navbar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-200/50 pb-[var(--sab)] z-50">
-        <div className="flex justify-around items-center h-12 max-w-lg mx-auto">
-          {[
-            { id: 'dashboard', icon: BarChart3, label: 'الرئيسية' },
-            { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
-            { id: 'students', icon: Users, label: 'الطلاب' },
-            { id: 'grades', icon: GraduationCap, label: 'الدرجات' },
-            { id: 'noor', icon: Globe, label: 'نور' },
-          ].map(item => (
-            <button 
-              key={item.id} 
-              onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all duration-300 ${activeTab === item.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-500'}`}
-            >
-              <div className={`p-1 rounded-xl transition-all ${activeTab === item.id ? 'bg-blue-50 transform -translate-y-0.5' : ''}`}>
-                 <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-              </div>
-              <span className={`text-[8px] font-black transition-opacity ${activeTab === item.id ? 'opacity-100' : 'opacity-70'}`}>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
+         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            {navItems.map(item => (
+               <button
+                 key={item.id}
+                 onClick={() => setActiveTab(item.id)}
+                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
+               >
+                 <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+                 <span className="text-sm font-bold">{item.label}</span>
+               </button>
+            ))}
+         </nav>
 
+         <div className="p-4 border-t border-gray-100">
+             <button onClick={() => setShowSettingsModal(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-all">
+                <Info className="w-5 h-5" />
+                <span className="text-sm font-bold">حول التطبيق</span>
+             </button>
+         </div>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Dynamic padding: pb increased on mobile for bottom bar, reduced on desktop */}
+        <main className="flex-1 overflow-y-auto pb-[calc(80px+var(--sab))] md:pb-6 pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin">
+          <div className="max-w-full md:max-w-6xl mx-auto h-full pt-2 md:pt-0">
+            <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+              {activeTab === 'dashboard' && (
+                <Dashboard 
+                  students={students} 
+                  teacherInfo={teacherInfo} 
+                  schedule={schedule}
+                  onUpdateSchedule={setSchedule}
+                  onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
+                  onNavigate={(tab) => setActiveTab(tab)}
+                  onOpenSettings={() => setShowSettingsModal(true)}
+                />
+              )}
+              {activeTab === 'students' && (
+                <StudentList 
+                  students={students} 
+                  classes={classes} 
+                  onAddClass={(c) => setClasses(prev => [...prev, c].sort())} 
+                  onAddStudentManually={handleAddStudentManually} 
+                  onUpdateStudent={handleUpdateStudent} 
+                  onViewReport={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }}
+                  onSwitchToImport={() => setActiveTab('import')}
+                />
+              )}
+              {activeTab === 'attendance' && <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />}
+              {activeTab === 'grades' && (
+                <GradeBook 
+                  students={students} 
+                  classes={classes} 
+                  onUpdateStudent={handleUpdateStudent}
+                  setStudents={setStudents}
+                  currentSemester={currentSemester}
+                  onSemesterChange={setCurrentSemester}
+                />
+              )}
+              {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
+              {activeTab === 'noor' && <NoorPlatform />}
+              {activeTab === 'report' && selectedStudentId && (
+                <div className="animate-in slide-in-from-right duration-300 max-w-3xl mx-auto">
+                  <button onClick={() => setActiveTab('students')} className="mb-4 flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 w-fit px-3 py-1.5 rounded-full"><ChevronLeft className="w-4 h-4" /> العودة للقائمة</button>
+                  <StudentReport 
+                    student={students.find(s => s.id === selectedStudentId)!} 
+                    onUpdateStudent={handleUpdateStudent} // Pass update function
+                  />
+                </div>
+              )}
+            </Suspense>
+          </div>
+        </main>
+
+        {/* MOBILE BOTTOM NAVBAR (Visible ONLY on Mobile/Tablet) */}
+        {/* iOS Style: Translucent background, thin border, refined icons */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/85 backdrop-blur-xl border-t border-gray-300/50 pb-[max(20px,env(safe-area-inset-bottom))] z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+          <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
+            {navItems.map(item => (
+              <button 
+                key={item.id} 
+                onClick={() => setActiveTab(item.id)} 
+                className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-95 ${activeTab === item.id ? 'text-blue-600' : 'text-gray-400'}`}
+              >
+                <item.icon className={`w-[22px] h-[22px] mb-1 ${activeTab === item.id ? 'fill-current' : 'stroke-[1.8px]'}`} />
+                <span className="text-[10px] font-medium tracking-tight">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      </div>
+
+      {/* Shared Settings Modal (Responsive) */}
       {showSettingsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
-           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-              <div className="absolute top-0 right-0 p-6 z-10">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
+           {/* Mobile: Bottom Sheet | Desktop: Centered Modal */}
+           <div className="bg-white w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" />
+              
+              <div className="absolute top-0 right-0 p-6 z-10 hidden sm:block">
                  <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-50 rounded-full hover:bg-gray-100"><X className="w-4 h-4 text-gray-500" /></button>
               </div>
 
               <div className="flex flex-col items-center text-center mb-6 pt-2 shrink-0">
-                 <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center mb-3 shadow-xl shadow-blue-200">
+                 <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-[1.2rem] flex items-center justify-center mb-3 shadow-xl shadow-blue-200">
                     <Info className="text-white w-8 h-8" />
                  </div>
-                 <h2 className="text-lg font-black text-gray-800 mb-0.5">حول التطبيق</h2>
-                 <p className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.0</p>
+                 <h2 className="text-xl font-black text-gray-900 mb-0.5">حول التطبيق</h2>
+                 <p className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.0</p>
                  
                  <div className="space-y-0.5 mb-4">
                     <p className="text-[10px] font-bold text-gray-400">تصميم وتطوير</p>
-                    <h3 className="text-xs font-black text-gray-800">محمد درويش الزعابي</h3>
-                    <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-gray-400">
+                    <h3 className="text-sm font-black text-gray-800">محمد درويش الزعابي</h3>
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-gray-400">
                       <Phone className="w-3 h-3" /> <span>98344555</span>
                     </div>
                  </div>
 
                  <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl w-full relative overflow-hidden">
                     <Heart className="w-12 h-12 text-amber-500/10 absolute -left-2 -bottom-2 rotate-12" />
-                    <p className="text-[10px] font-black text-amber-800 leading-relaxed relative z-10">
+                    <p className="text-[10px] font-bold text-amber-800 leading-relaxed relative z-10">
                     "هذا التطبيق عمل خيري وصدقة عن روح والدتي ؛ فأرجو الدعاء لها بالرحمة والمغفرة"
                     </p>
                  </div>
               </div>
 
-              <div className="overflow-y-auto pr-1 space-y-4 custom-scrollbar flex-1">
-                 
+              <div className="overflow-y-auto pr-1 space-y-4 custom-scrollbar flex-1 pb-safe">
                  <div className="border-t border-gray-100 pt-4 space-y-2">
-                    <h3 className="text-xs font-black text-gray-400 mb-2 flex items-center gap-2"><Database className="w-3.5 h-3.5" /> إدارة البيانات</h3>
+                    <h3 className="text-xs font-black text-gray-400 mb-2 flex items-center gap-2 uppercase tracking-wider"><Database className="w-3.5 h-3.5" /> إدارة البيانات</h3>
                     
-                    <button onClick={handleBackupData} className="w-full flex items-center justify-between p-3.5 bg-blue-50 text-blue-700 rounded-2xl text-[11px] font-black hover:bg-blue-100 active:scale-95 transition-all">
-                        <span>حفظ نسخة احتياطية (نسخ شامل)</span>
+                    <button onClick={handleBackupData} className="w-full flex items-center justify-between p-4 bg-gray-50 text-gray-700 rounded-2xl text-[12px] font-bold hover:bg-gray-100 active:scale-95 transition-all">
+                        <span>حفظ نسخة احتياطية</span>
                         {navigator.canShare ? <Share className="w-4 h-4" /> : <Download className="w-4 h-4" />}
                     </button>
 
-                    <label className="w-full flex items-center justify-between p-3.5 bg-purple-50 text-purple-700 rounded-2xl text-[11px] font-black hover:bg-purple-100 active:scale-95 transition-all cursor-pointer">
-                        <span>استعادة نسخة (استيراد)</span>
+                    <label className="w-full flex items-center justify-between p-4 bg-gray-50 text-gray-700 rounded-2xl text-[12px] font-bold hover:bg-gray-100 active:scale-95 transition-all cursor-pointer">
+                        <span>استعادة نسخة</span>
                         <Upload className="w-4 h-4" />
                         <input type="file" accept=".json" className="hidden" onChange={handleRestoreData} />
                     </label>
 
-                    <button onClick={handleClearAllData} className="w-full flex items-center justify-between p-3.5 bg-rose-50 text-rose-700 rounded-2xl text-[11px] font-black hover:bg-rose-100 active:scale-95 transition-all">
+                    <button onClick={handleClearAllData} className="w-full flex items-center justify-between p-4 bg-rose-50 text-rose-600 rounded-2xl text-[12px] font-bold hover:bg-rose-100 active:scale-95 transition-all mt-4">
                         <span>حذف جميع البيانات</span>
                         <Trash2 className="w-4 h-4" />
                     </button>
