@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Student } from '../types';
-import { Award, AlertCircle, MessageCircle, PhoneCall, GraduationCap } from 'lucide-react';
+import { Award, AlertCircle, MessageCircle, PhoneCall, GraduationCap, Trash2, Download, Loader2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+
+// تعريف html2pdf لتجنب أخطاء TypeScript
+declare var html2pdf: any;
 
 interface StudentReportProps {
   student: Student;
+  onUpdateStudent?: (s: Student) => void;
 }
 
-const StudentReport: React.FC<StudentReportProps> = ({ student }) => {
+const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent }) => {
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const behaviors = student.behaviors || [];
   const allGrades = student.grades || [];
 
@@ -43,10 +49,159 @@ const StudentReport: React.FC<StudentReportProps> = ({ student }) => {
       finalMax = sem2Stats.max;
   }
 
+  // دالة تحديد الرمز اللفظي للدرجة
+  const getGradeSymbol = (percentage: number) => {
+    if (percentage >= 90) return { symbol: 'أ', color: 'text-emerald-600 bg-emerald-50' };
+    if (percentage >= 80) return { symbol: 'ب', color: 'text-blue-600 bg-blue-50' };
+    if (percentage >= 65) return { symbol: 'ج', color: 'text-indigo-600 bg-indigo-50' };
+    if (percentage >= 50) return { symbol: 'د', color: 'text-amber-600 bg-amber-50' };
+    return { symbol: 'هـ', color: 'text-rose-600 bg-rose-50' };
+  };
+
+  const finalSymbol = finalMax > 0 ? getGradeSymbol(finalPercentage) : null;
+
+  const handleDeleteBehavior = (behaviorId: string) => {
+      if (confirm('هل أنت متأكد من حذف هذا السلوك؟')) {
+          const updatedBehaviors = behaviors.filter(b => b.id !== behaviorId);
+          if (onUpdateStudent) {
+              onUpdateStudent({ ...student, behaviors: updatedBehaviors });
+          }
+      }
+  };
+
+  // --- دالة حفظ تقرير الطالب كـ PDF ---
+  const handleSaveReport = () => {
+    setIsGeneratingPdf(true);
+
+    const element = document.createElement('div');
+    element.setAttribute('dir', 'rtl');
+    element.style.fontFamily = 'Tajawal, sans-serif';
+    element.style.padding = '20px';
+
+    const reportHtml = `
+      <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+        <h1 style="margin: 0; font-size: 24px; color: #000;">تقرير الطالب المفصل</h1>
+        <p style="margin: 5px 0 0; font-size: 14px; color: #555;">تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')}</p>
+      </div>
+
+      <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+         <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 16px; font-weight: bold; color: #333;"><span>الاسم:</span> <span>${student.name}</span></div>
+         <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 16px; font-weight: bold; color: #333;"><span>الفصل:</span> <span>${student.classes?.join(' - ')}</span></div>
+         <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; color: #333;"><span>رقم ولي الأمر:</span> <span>${student.parentPhone || 'غير مسجل'}</span></div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+         <div style="flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; color: #666;">المعدل العام</div>
+            <div style="font-size: 20px; font-weight: 900; color: #2563eb;">${finalPercentage}%</div>
+            <div style="font-size: 12px; color: #888;">${finalScore}/${finalMax}</div>
+         </div>
+         <div style="flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; color: #666;">أيام الغياب</div>
+            <div style="font-size: 20px; font-weight: 900; color: #dc2626;">${student.attendance.filter(a => a.status === 'absent').length}</div>
+         </div>
+         <div style="flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; color: #666;">السلوكيات</div>
+            <div style="font-size: 20px; font-weight: 900; color: #059669;">${behaviors.length}</div>
+         </div>
+      </div>
+
+      <h2 style="font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 5px; margin-top: 20px; color: #000;">تفاصيل الدرجات</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+        <thead>
+          <tr style="background-color: #f3f4f6;">
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">المادة/الأداة</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">الدرجة</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">العظمى</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">الفصل</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allGrades.length > 0 ? allGrades.map(g => `
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${g.category}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${g.score}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${g.maxScore}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${g.semester === '1' ? 'الأول' : 'الثاني'}</td>
+            </tr>`).join('') : '<tr><td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: center;">لا توجد درجات</td></tr>'}
+        </tbody>
+      </table>
+
+      <h2 style="font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 5px; margin-top: 20px; color: #000;">سجل السلوكيات</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+        <thead>
+          <tr style="background-color: #f3f4f6;">
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">السلوك</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">النوع</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">النقاط</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">التاريخ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${behaviors.length > 0 ? behaviors.map(b => `
+            <tr>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${b.description}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${b.type === 'positive' ? '#059669' : '#dc2626'}; font-weight: bold;">${b.type === 'positive' ? 'إيجابي' : 'سلبي'}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${b.points > 0 ? '+' + b.points : b.points}</td>
+              <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${new Date(b.date).toLocaleDateString('ar-EG')}</td>
+            </tr>`).join('') : '<tr><td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: center;">سجل نظيف</td></tr>'}
+        </tbody>
+      </table>
+    `;
+    
+    element.innerHTML = reportHtml;
+
+    const opt = {
+        margin:       10,
+        filename:     `Student_Report_${student.name.replace(/\s+/g, '_')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    if (typeof html2pdf !== 'undefined') {
+        const worker = html2pdf().set(opt).from(element);
+        
+        // إصلاح نسخة الهاتف: فتح الملف في نافذة جديدة
+        if (Capacitor.isNativePlatform()) {
+             worker.toPdf().get('pdf').then((pdf: any) => {
+                 const blob = pdf.output('bloburl');
+                 window.open(blob, '_blank');
+                 setIsGeneratingPdf(false);
+             }).catch((err: any) => {
+                 console.error(err);
+                 alert('حدث خطأ أثناء معاينة الملف');
+                 setIsGeneratingPdf(false);
+             });
+        } else {
+             worker.save().then(() => {
+                setIsGeneratingPdf(false);
+             }).catch((err: any) => {
+                console.error(err);
+                alert('حدث خطأ أثناء حفظ الملف');
+                setIsGeneratingPdf(false);
+             });
+        }
+    } else {
+        alert('مكتبة PDF غير محملة. تأكد من الاتصال بالإنترنت.');
+        setIsGeneratingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="space-y-6">
-          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col gap-6">
+          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col gap-6 relative">
+            {/* زر الحفظ كـ PDF */}
+            <button 
+                onClick={handleSaveReport} 
+                disabled={isGeneratingPdf}
+                className="absolute top-6 left-6 p-3 bg-gray-50 rounded-full hover:bg-gray-100 text-gray-600 transition-colors disabled:opacity-50" 
+                title={Capacitor.isNativePlatform() ? "معاينة التقرير (PDF)" : "حفظ التقرير (PDF)"}
+            >
+                {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin text-blue-600" /> : <Download className="w-5 h-5" />}
+            </button>
+
             <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-[1.5rem] bg-blue-600 flex items-center justify-center text-white font-black text-2xl">{student.name.charAt(0)}</div>
                 <div>
@@ -55,18 +210,26 @@ const StudentReport: React.FC<StudentReportProps> = ({ student }) => {
                 </div>
             </div>
 
-            {/* إحصائيات نهائية */}
+            {/* إحصائيات نهائية - تم تعديل مكان المستوى */}
             <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl">
               <div>
                   <span className="text-[9px] font-bold text-gray-400 block mb-1">النتيجة النهائية</span>
-                  <div className="flex items-end gap-2">
-                     <span className="text-xl font-black text-gray-900">{finalPercentage}%</span>
-                     {finalMax > 0 && <span className="text-[10px] font-bold text-gray-400 mb-1">({finalScore}/{finalMax})</span>}
+                  <div className="flex flex-col items-start gap-1">
+                     <span className="text-3xl font-black text-gray-900 leading-none">{finalPercentage}%</span>
+                     {finalMax > 0 && <span className="text-[10px] font-bold text-gray-400">({finalScore}/{finalMax})</span>}
+                     
+                     {/* نقل المستوى للأسفل */}
+                     {finalSymbol && (
+                         <div className="flex items-center gap-2 mt-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm">
+                             <span className="text-[9px] font-bold text-gray-400">المستوى:</span>
+                             <span className={`text-xs font-black ${finalSymbol.color.replace('bg-', 'text-').split(' ')[0]}`}>{finalSymbol.symbol}</span>
+                         </div>
+                     )}
                   </div>
               </div>
               <div>
                   <span className="text-[9px] font-bold text-gray-400 block mb-1">عدد السلوكيات</span>
-                  <span className="text-xl font-black text-gray-900">{behaviors.length}</span>
+                  <span className="text-3xl font-black text-gray-900 leading-none">{behaviors.length}</span>
               </div>
             </div>
 
@@ -120,14 +283,21 @@ const StudentReport: React.FC<StudentReportProps> = ({ student }) => {
             <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex items-center gap-2"><Award className="w-4 h-4 text-blue-600" /><h3 className="font-black text-gray-800 text-[11px]">سجل السلوكيات</h3></div>
             <div className="divide-y divide-gray-50">
               {behaviors.length > 0 ? behaviors.map(b => (
-                <div key={b.id} className="p-4 flex items-center justify-between">
+                <div key={b.id} className="p-4 flex items-center justify-between group">
                   <div className="flex items-center gap-3">
                     <div className={`p-1.5 rounded-lg ${b.type === 'positive' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                         {b.type === 'positive' ? <Award className="w-3.5 h-3.5"/> : <AlertCircle className="w-3.5 h-3.5"/>}
                     </div>
-                    <span className="text-[10px] font-black text-gray-800">{b.description}</span>
+                    <div>
+                        <span className="block text-[10px] font-black text-gray-800">{b.description}</span>
+                        <span className="text-[9px] text-gray-400 font-bold">{new Date(b.date).toLocaleDateString('ar-EG')}</span>
+                    </div>
                   </div>
-                  <span className="text-[9px] text-gray-400 font-bold">{new Date(b.date).toLocaleDateString('ar-EG')}</span>
+                  {onUpdateStudent && (
+                      <button onClick={() => handleDeleteBehavior(b.id)} className="p-2 text-gray-300 hover:text-rose-500 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                      </button>
+                  )}
                 </div>
               )) : <p className="p-8 text-center text-[10px] text-gray-400 font-bold">لا توجد ملاحظات سلوكية مسجلة</p>}
             </div>

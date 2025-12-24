@@ -16,6 +16,27 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
   const [newClassInput, setNewClassInput] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
+  const cleanHeader = (header: string): string => {
+      if (!header) return '';
+      return String(header).trim().replace(/[\u200B-\u200D\uFEFF]/g, '').toLowerCase();
+  };
+
+  // دالة تنظيف مبسطة جداً حسب الطلب
+  const cleanPhoneNumber = (raw: any): string => {
+      if (!raw) return '';
+      const str = String(raw).trim();
+      // نبقي فقط على الأرقام وعلامة + (إزالة المسافات والأقواس والشرطات)
+      // لا نقوم بإضافة أصفار أو تعديل بداية الرقم نهائياً
+      return str.replace(/[^0-9+]/g, '');
+  };
+
+  // التحقق العام: هل النص يحتوي على أرقام بطول معقول (7 خانات فأكثر)
+  // هذا يدعم الأرقام العمانية (8 أرقام) وأي أرقام دولية أخرى
+  const looksLikeAPhoneNumber = (val: string): boolean => {
+      const clean = cleanPhoneNumber(val);
+      return /^\+?\d{7,15}$/.test(clean);
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -32,9 +53,10 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
     setImportStatus('idle');
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+      // استخدام raw: false مهم لقراءة البيانات كما تظهر في الخلية (كنصوص)
+      const workbook = XLSX.read(data, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false }) as any[];
 
       if (jsonData.length === 0) throw new Error('الملف فارغ');
 
@@ -42,26 +64,66 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
           onAddClass(finalTargetClass);
       }
 
-      // مصفوفات الكلمات الدلالية للبحث عن الأعمدة
-      const nameHeaders = ['الاسم', 'اسم الطالب', 'اسم', 'Name', 'Student Name', 'Full Name', 'المتعلم', 'اسم المتعلم', 'Student'];
-      const phoneHeaders = ['رقم ولي الأمر', 'جوال', 'الهاتف', 'هاتف', 'رقم الجوال', 'رقم الهاتف', 'Phone', 'Mobile', 'Parent Phone', 'Contact'];
-      const gradeHeaders = ['الصف', 'صف', 'Grade', 'Level', 'المرحلة'];
+      // 1. تحديد الأعمدة
+      const headers = Object.keys(jsonData[0]);
+      
+      const nameKeywords = ['الاسم', 'اسم الطالب', 'اسم', 'name', 'student', 'full name', 'المتعلم'];
+      const phoneKeywords = ['جوال', 'هاتف', 'phone', 'mobile', 'contact', 'تواصل', 'ولي', 'parent', 'رقم', 'cell'];
+      const gradeKeywords = ['الصف', 'صف', 'grade', 'level', 'المرحلة'];
+
+      let nameKey = headers.find(h => nameKeywords.some(kw => cleanHeader(h).includes(kw)));
+      let phoneKey = headers.find(h => phoneKeywords.some(kw => cleanHeader(h).includes(kw)));
+      const gradeKey = headers.find(h => gradeKeywords.some(kw => cleanHeader(h).includes(kw)));
+
+      // إذا لم نجد عمود الاسم، نعتبر العمود الأول هو الاسم
+      if (!nameKey) nameKey = headers[0];
+
+      // --- استراتيجية تحديد عمود الهاتف ---
+      if (!phoneKey) {
+          // 1. المحاولة الأولى: البحث الذكي في المحتوى عن أي أرقام
+          for (const header of headers) {
+              if (header === nameKey) continue;
+              let matchCount = 0;
+              let checkLimit = Math.min(jsonData.length, 10);
+              for (let i = 0; i < checkLimit; i++) {
+                  if (looksLikeAPhoneNumber(jsonData[i][header])) {
+                      matchCount++;
+                  }
+              }
+              if (matchCount >= checkLimit * 0.3) {
+                  phoneKey = header;
+                  break;
+              }
+          }
+
+          // 2. المحاولة الثانية (الحل الجذري): إذا فشل البحث، خذ العمود المجاور للاسم مباشرة
+          if (!phoneKey && nameKey) {
+              const nameIndex = headers.indexOf(nameKey);
+              // التحقق من وجود عمود بعد عمود الاسم
+              if (nameIndex !== -1 && nameIndex + 1 < headers.length) {
+                  phoneKey = headers[nameIndex + 1];
+                  console.log(`Using next column for phone: ${phoneKey}`);
+              }
+          }
+      }
 
       const mappedStudents: Student[] = jsonData
-        .map((row, idx) => {
-          const rowKeys = Object.keys(row);
+        .map((row, idx): Student | null => {
+          const studentName = String(row[nameKey!] || '').trim();
           
-          const nameKey = rowKeys.find(k => nameHeaders.includes(k.trim()));
-          const phoneKey = rowKeys.find(k => phoneHeaders.includes(k.trim()));
-          const gradeKey = rowKeys.find(k => gradeHeaders.includes(k.trim()));
+          let parentPhone = '';
+          if (phoneKey) {
+             // نسخ الرقم كما هو مع تنظيف الرموز فقط
+             parentPhone = cleanPhoneNumber(row[phoneKey]);
+          }
 
-          const studentName = String(row[nameKey || ''] || row[rowKeys[0]] || '').trim();
-          const parentPhone = phoneKey ? String(row[phoneKey] || '').trim() : '';
+          // تجاهل العناوين المكررة
+          if (!studentName || nameKeywords.includes(cleanHeader(studentName))) return null;
 
           return {
             id: Math.random().toString(36).substr(2, 9),
             name: studentName,
-            grade: String(row[gradeKey || ''] || ''),
+            grade: gradeKey ? String(row[gradeKey]).trim() : '',
             classes: [finalTargetClass],
             attendance: [],
             behaviors: [],
@@ -69,18 +131,23 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
             parentPhone: parentPhone
           };
         })
-        .filter(student => {
-          return student.name !== '' && !nameHeaders.includes(student.name);
-        });
+        .filter((student): student is Student => student !== null);
 
       if (mappedStudents.length === 0) {
-        alert('لم يتم العثور على أسماء طلاب صالحة. تأكد من وجود عمود باسم "الاسم".');
+        alert('لم يتم العثور على بيانات صالحة. تأكد من صحة الملف.');
         setImportStatus('error');
         return;
       }
 
       onImport(mappedStudents);
       setImportStatus('success');
+      
+      const importedPhones = mappedStudents.filter(s => s.parentPhone).length;
+      if (importedPhones === 0) {
+          // تنبيه المستخدم لكن لا نوقف العملية
+          console.warn('تم استيراد الطلاب لكن لم يتم العثور على أرقام هواتف.');
+      }
+
       setTimeout(() => setImportStatus('idle'), 3000);
       setNewClassInput('');
       setTargetClass('');
@@ -184,10 +251,10 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ existingClasses, onImport, on
           <div className="flex gap-2 items-start">
               <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="text-[9px] text-amber-700 font-bold leading-relaxed">
-                  <p>للحصول على أفضل النتائج، تأكد أن ملف الإكسل يحتوي على الأعمدة التالية:</p>
+                  <p>تم تحديث النظام ليدعم الأرقام العمانية والدولية.</p>
                   <ul className="list-disc list-inside mt-1">
-                      <li>عمود لاسم الطالب (مثال: "الاسم")</li>
-                      <li>عمود لرقم الجوال (مثال: "جوال")</li>
+                      <li>يتم نسخ الرقم كما هو دون تعديل.</li>
+                      <li>إذا لم يتم العثور على عمود "هاتف"، سيتم قراءة العمود المجاور لاسم الطالب مباشرة.</li>
                   </ul>
               </div>
           </div>

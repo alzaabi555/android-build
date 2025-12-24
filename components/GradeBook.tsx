@@ -45,7 +45,7 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
   
   const [selectedToolId, setSelectedToolId] = useState<string>('');
   const [score, setScore] = useState('');
-  const [currentMaxScore, setCurrentMaxScore] = useState('10'); 
+  const [currentMaxScore, setCurrentMaxScore] = useState(''); 
 
   useEffect(() => {
      localStorage.setItem('assessmentTools', JSON.stringify(tools));
@@ -96,13 +96,15 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
     
     // Determine category and max score
     let categoryName = 'درجة عامة';
-    let maxVal = Number(currentMaxScore);
+    // استخدام المدخل اليدوي إذا تم تعديله، وإلا استخدام الأداة
+    let maxVal = currentMaxScore ? Number(currentMaxScore) : 10;
 
     if (selectedToolId) {
         const tool = tools.find(t => t.id === selectedToolId);
         if (tool) {
             categoryName = tool.name;
-            maxVal = tool.maxScore;
+            // إذا لم يعدل المستخدم الدرجة العظمى يدوياً، نستخدم الأداة، وإلا نستخدم القيمة المدخلة
+            if (!currentMaxScore) maxVal = tool.maxScore;
         }
     } else if (editingGrade) {
         categoryName = editingGrade.category; // Keep existing name if not using tool
@@ -186,54 +188,37 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
       headers.forEach((h, idx) => {
           if (idx === nameColIndex) return;
           if (!h || h === '') return; // Skip empty headers
-          
-          // Check ignore list
           if (ignoreKeywords.some(kw => h.toLowerCase() === kw || h.toLowerCase().includes(kw + ' '))) return;
-          
-          // Found a potential tool column
           gradeColIndices.push(idx);
       });
 
-      const colMaxValues: Record<number, number> = {};
-      
-      // Determine max value from data rows
-      for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-          const row = rawData[i];
-          if(!row) continue;
-          gradeColIndices.forEach(colIdx => {
-             const val = parseFloat(row[colIdx]);
-             if (!isNaN(val)) {
-                 colMaxValues[colIdx] = Math.max(colMaxValues[colIdx] || 0, val);
-             }
-          });
-      }
+      // No auto calculation for Max score anymore, default to empty or manual entry
+      // We will assume a default max of 10 for import if not manually set later, or let the user edit tools.
 
       let updatedCount = 0;
       let toolsAddedCount = 0;
       const updatedStudents = [...students];
       const currentTools = [...tools];
 
-      const findOrCreateTool = (toolName: string, observedMax: number): number => {
+      const findOrCreateTool = (toolName: string): number => {
           const cleanName = toolName.trim();
           const existing = currentTools.find(t => t.name.trim() === cleanName);
           if (existing) return existing.maxScore;
           
-          const smartMax = Math.max(10, Math.ceil(observedMax));
           const newTool = {
               id: Math.random().toString(36).substr(2, 9),
               name: cleanName,
-              maxScore: smartMax
+              maxScore: 10 // افتراضي 10، يفضل أن يعدلها المستخدم لاحقاً
           };
           currentTools.push(newTool);
           toolsAddedCount++;
-          return smartMax;
+          return 10;
       };
 
-      // 1. Create ALL tools found in header first (even if empty)
+      // 1. Create ALL tools found in header first
       gradeColIndices.forEach(colIdx => {
           const toolName = headers[colIdx];
-          // Default to 10 if no data found, otherwise use max found
-          findOrCreateTool(toolName, colMaxValues[colIdx] || 10);
+          findOrCreateTool(toolName);
       });
 
       // 2. Import grades
@@ -253,7 +238,6 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
                       const numericScore = parseFloat(String(cellValue));
                       if (!isNaN(numericScore)) {
                           const toolName = headers[colIdx];
-                          // Tool is guaranteed to exist now
                           const tool = currentTools.find(t => t.name.trim() === toolName.trim());
                           const maxScore = tool ? tool.maxScore : 10;
 
@@ -268,7 +252,6 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
                           };
 
                           const currentGrades = updatedStudents[studentIndex].grades || [];
-                          // Overwrite existing grade logic for same tool and semester
                           const filteredGrades = currentGrades.filter(g => 
                               !(g.category === toolName && (g.semester === currentSemester || (!g.semester && currentSemester === '1')))
                           );
@@ -288,7 +271,7 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
       if (updatedCount > 0 || toolsAddedCount > 0) {
           setStudents(updatedStudents);
           setTools(currentTools);
-          alert(`تم استيراد ${updatedCount} طالب، وإنشاء/تحديث ${toolsAddedCount} أداة تقويم.`);
+          alert(`تم استيراد ${updatedCount} طالب، وإنشاء ${toolsAddedCount} أداة تقويم (الدرجة العظمى الافتراضية 10، يرجى تعديلها من الإعدادات إذا لزم الأمر).`);
       } else {
           alert('لم يتم العثور على تطابق في الأسماء.');
       }
@@ -417,7 +400,7 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
                   </div>
                   <ul className="list-disc list-inside text-[9px] text-amber-700 font-bold space-y-1">
                       <li>تأكد من اختيار <strong>الفصل الدراسي الصحيح</strong> قبل الاستيراد.</li>
-                      <li>يتم استيراد كافة الأعمدة الرقمية كأدوات تقويم (بدون حد أقصى).</li>
+                      <li>يتم استيراد كافة الأعمدة الرقمية كأدوات تقويم.</li>
                   </ul>
               </div>
           )}
@@ -467,13 +450,15 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
                           <div key={tool.id} className="flex items-center gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                               <span className="flex-1 block text-[10px] font-black text-gray-800">{tool.name}</span>
                               
-                              {/* Editable Max Score Input */}
-                              <input 
-                                type="number" 
-                                value={tool.maxScore} 
-                                onChange={(e) => handleUpdateToolMax(tool.id, e.target.value)}
-                                className="w-12 text-center text-[10px] font-bold bg-white px-1 py-1 rounded-lg border border-gray-200 outline-none focus:border-blue-500 transition-colors"
-                              />
+                              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-gray-200">
+                                <span className="text-[9px] text-gray-400 font-bold">عظمى:</span>
+                                <input 
+                                    type="number" 
+                                    value={tool.maxScore} 
+                                    onChange={(e) => handleUpdateToolMax(tool.id, e.target.value)}
+                                    className="w-10 text-center text-[10px] font-bold outline-none text-blue-600"
+                                />
+                              </div>
                               
                               <button onClick={(e) => handleDeleteTool(e, tool.id)} className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100"><Trash2 className="w-3.5 h-3.5"/></button>
                           </div>
@@ -530,12 +515,20 @@ const GradeBook: React.FC<GradeBookProps> = ({ students, classes, onUpdateStuden
                  <div className="bg-gray-50 rounded-[2rem] p-6 flex flex-col items-center justify-center border border-gray-100">
                     <div className="flex items-end gap-2">
                         <div className="text-center">
-                            <input type="number" value={score} onChange={e => setScore(e.target.value)} placeholder="0" className="w-20 h-20 bg-white border-2 border-transparent focus:border-blue-500 rounded-2xl text-center font-black text-3xl text-blue-600 outline-none shadow-sm transition-all" autoFocus />
+                            {/* تم تصغير حجم الخانة هنا */}
+                            <input type="number" value={score} onChange={e => setScore(e.target.value)} placeholder="0" className="w-16 h-12 bg-white border-2 border-transparent focus:border-blue-500 rounded-xl text-center font-black text-xl text-blue-600 outline-none shadow-sm transition-all" autoFocus />
                             <label className="text-[9px] font-black text-gray-400 block mt-2">الدرجة</label>
                         </div>
-                        <div className="pb-8 text-2xl font-black text-gray-300">/</div>
-                        <div className="text-center pb-2">
-                             <div className="text-2xl font-black text-gray-400">{editingGrade ? editingGrade.maxScore : currentMaxScore}</div>
+                        <div className="pb-5 text-xl font-black text-gray-300">/</div>
+                        <div className="text-center">
+                             {/* إدخال يدوي للدرجة العظمى */}
+                             <input 
+                                type="number" 
+                                value={currentMaxScore} 
+                                onChange={(e) => setCurrentMaxScore(e.target.value)}
+                                className="w-16 h-12 bg-white/50 border-2 border-transparent focus:border-blue-500/50 rounded-xl text-center font-black text-xl text-gray-400 outline-none transition-all placeholder-gray-300"
+                                placeholder="10"
+                             />
                              <label className="text-[9px] font-black text-gray-400 block mt-2">العظمى</label>
                         </div>
                     </div>

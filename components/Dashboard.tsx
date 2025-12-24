@@ -69,68 +69,68 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 pb-24">
+    <div className="space-y-4 animate-in fade-in duration-500 pb-24 md:pb-8">
       {/* Welcome Header with Settings Button */}
-      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden flex justify-between items-center">
+      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 md:p-8 text-white shadow-lg relative overflow-hidden flex justify-between items-center">
         <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-1 opacity-90">
-            <GreetingIcon className={`${greeting.color} w-4 h-4`} />
-            <span className="text-[10px] font-black">{greeting.text}</span>
+            <GreetingIcon className={`${greeting.color} w-4 h-4 md:w-5 md:h-5`} />
+            <span className="text-[10px] md:text-xs font-black">{greeting.text}</span>
           </div>
-          <h2 className="text-lg font-black">أهلاً بك، أ. {teacherInfo?.name || 'المعلم'}</h2>
+          <h2 className="text-lg md:text-2xl font-black">أهلاً بك، أ. {teacherInfo?.name || 'المعلم'}</h2>
           <div className="flex items-center gap-1.5 mt-1 opacity-80">
-            <School className="w-3 h-3" />
-            <p className="text-[10px] font-black">{teacherInfo?.school || 'اسم المدرسة'}</p>
+            <School className="w-3 h-3 md:w-4 md:h-4" />
+            <p className="text-[10px] md:text-xs font-black">{teacherInfo?.school || 'اسم المدرسة'}</p>
           </div>
         </div>
         
-        {/* Settings Button Moved Here */}
+        {/* Settings Button Moved Here (Hidden on Desktop since it's in sidebar) */}
         <button 
             onClick={onOpenSettings} 
-            className="relative z-10 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all border border-white/10 shadow-sm"
+            className="md:hidden relative z-10 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all border border-white/10 shadow-sm"
         >
             <Settings className="w-5 h-5 text-white" />
         </button>
 
-        <Sparkles className="absolute -left-2 -bottom-2 w-16 h-16 opacity-10 rotate-12" />
+        <Sparkles className="absolute -left-2 -bottom-2 w-16 h-16 md:w-32 md:h-32 opacity-10 rotate-12" />
       </div>
 
       {/* Quick Actions */}
-      <button onClick={() => onNavigate('attendance')} className="w-full bg-white text-blue-900 p-4 rounded-2xl shadow-sm border border-blue-50 flex items-center justify-between group active:scale-95 transition-all">
+      <button onClick={() => onNavigate('attendance')} className="w-full bg-white text-blue-900 p-4 md:p-6 rounded-2xl shadow-sm border border-blue-50 flex items-center justify-between group active:scale-95 transition-all">
             <div className="flex items-center gap-3">
-                <div className="bg-blue-50 p-2.5 rounded-xl">
-                    <CalendarCheck className="w-6 h-6 text-blue-600" />
+                <div className="bg-blue-50 p-2.5 md:p-3.5 rounded-xl">
+                    <CalendarCheck className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
                 </div>
                 <div className="text-right">
-                    <h3 className="font-black text-base text-gray-900">تسجيل الحضور</h3>
-                    <p className="text-gray-400 text-[10px] font-bold">اضغط هنا لبدء رصد الغياب لهذا اليوم</p>
+                    <h3 className="font-black text-base md:text-lg text-gray-900">تسجيل الحضور</h3>
+                    <p className="text-gray-400 text-[10px] md:text-xs font-bold">اضغط هنا لبدء رصد الغياب لهذا اليوم</p>
                 </div>
             </div>
-            <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black group-hover:scale-110 transition-transform">
-                <ChevronLeft className="w-5 h-5" />
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black group-hover:scale-110 transition-transform">
+                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
             </div>
       </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Schedule Section */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative lg:col-span-2">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative lg:col-span-3">
             <div className="flex justify-between items-center mb-3">
-               <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs">
+               <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs md:text-sm">
                  <Calendar className="w-4 h-4 text-blue-500" /> الجدول المدرسي
                </h3>
-               <button onClick={() => setIsEditingSchedule(true)} className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
+               <button onClick={() => setIsEditingSchedule(true)} className="text-[9px] md:text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
                  <Edit2 className="w-3 h-3" /> تعديل
                </button>
             </div>
 
             {todaySchedule ? (
                <div className="space-y-2">
-                 <p className="text-[9px] font-bold text-gray-400 mb-1">جدول اليوم: {todayName}</p>
+                 <p className="text-[9px] md:text-xs font-bold text-gray-400 mb-1">جدول اليوم: {todayName}</p>
                  <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5">
                     {todaySchedule.periods.slice(0, 8).map((p, idx) => (
-                       <div key={idx} className={`p-1.5 rounded-lg text-center border ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
-                          <span className="block text-[7px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
-                          <span className="block text-[10px] font-black truncate leading-tight">{p || '-'}</span>
+                       <div key={idx} className={`p-1.5 md:p-3 rounded-lg text-center border ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
+                          <span className="block text-[7px] md:text-[9px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
+                          <span className="block text-[10px] md:text-xs font-black truncate leading-tight">{p || '-'}</span>
                        </div>
                     ))}
                  </div>
@@ -143,21 +143,21 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
           </div>
 
           {/* Attendance Chart */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm lg:col-span-1">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs"><Users className="w-4 h-4 text-blue-500" /> حضور اليوم</h3>
+              <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs md:text-sm"><Users className="w-4 h-4 text-blue-500" /> حضور اليوم</h3>
               <span className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black">{new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-24 w-24 shrink-0">
+            <div className="flex items-center gap-3 justify-center lg:flex-col lg:gap-5">
+              <div className="h-24 w-24 md:h-32 md:w-32 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie 
                       data={pieData} 
                       cx="50%" 
                       cy="50%" 
-                      innerRadius={25} 
-                      outerRadius={40} 
+                      innerRadius={30} 
+                      outerRadius={45} 
                       paddingAngle={5} 
                       dataKey="value" 
                       stroke="none"
@@ -170,23 +170,23 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex-1 space-y-1.5">
-                <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-50"><p className="text-[8px] text-emerald-600 font-black mb-0.5">حاضر</p><p className="text-sm font-black text-emerald-700">{attendanceToday.present}</p></div>
-                <div className="p-2 bg-rose-50 rounded-lg border border-rose-50"><p className="text-[8px] text-rose-600 font-black mb-0.5">غائب</p><p className="text-sm font-black text-rose-700">{attendanceToday.absent}</p></div>
+              <div className="flex-1 lg:w-full space-y-1.5 lg:flex lg:space-y-0 lg:gap-2">
+                <div className="flex-1 p-2 bg-emerald-50 rounded-lg border border-emerald-50"><p className="text-[8px] text-emerald-600 font-black mb-0.5">حاضر</p><p className="text-sm font-black text-emerald-700">{attendanceToday.present}</p></div>
+                <div className="flex-1 p-2 bg-rose-50 rounded-lg border border-rose-50"><p className="text-[8px] text-rose-600 font-black mb-0.5">غائب</p><p className="text-sm font-black text-rose-700">{attendanceToday.absent}</p></div>
               </div>
             </div>
           </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <div className="bg-white p-3 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Award className="text-emerald-500 w-4 h-4" /></div>
-          <div><p className="text-gray-400 text-[8px] font-black">سلوك إيجابي</p><p className="text-sm font-black text-gray-900">{behaviorStats.positive}</p></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Award className="text-emerald-500 w-4 h-4 md:w-5 md:h-5" /></div>
+          <div><p className="text-gray-400 text-[8px] md:text-xs font-black">سلوك إيجابي</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.positive}</p></div>
         </div>
-        <div className="bg-white p-3 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
-          <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center shrink-0"><AlertCircle className="text-rose-500 w-4 h-4" /></div>
-          <div><p className="text-gray-400 text-[8px] font-black">تنبيهات سلوكية</p><p className="text-sm font-black text-gray-900">{behaviorStats.negative}</p></div>
+        <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0"><AlertCircle className="text-rose-500 w-4 h-4 md:w-5 md:h-5" /></div>
+          <div><p className="text-gray-400 text-[8px] md:text-xs font-black">تنبيهات سلوكية</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.negative}</p></div>
         </div>
       </div>
 
@@ -200,7 +200,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
               </div>
 
               {/* Day Tabs */}
-              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+              <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar">
                 {schedule.map((day, idx) => (
                   <button 
                     key={idx}
@@ -212,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 pb-6">
+              <div className="flex-1 overflow-y-auto space-y-2 pb-6 custom-scrollbar">
                  <p className="text-[10px] font-bold text-gray-500">حصص يوم: <span className="text-blue-600">{schedule[activeDayIndex].dayName}</span></p>
                  {schedule[activeDayIndex].periods.map((period, pIdx) => (
                     <div key={pIdx} className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-2xl border border-gray-100">
