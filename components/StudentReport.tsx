@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
 import { Student, GradeRecord } from '../types';
-import { Award, AlertCircle, MessageCircle, PhoneCall, Trash2, Download, Loader2, Mail, UserCheck, FileText } from 'lucide-react';
+import { Award, AlertCircle, MessageCircle, PhoneCall, Trash2, Loader2, Mail, UserCheck, FileText, Medal } from 'lucide-react';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 
-// تعريف html2pdf لتجنب أخطاء TypeScript
 declare var html2pdf: any;
 
 interface StudentReportProps {
   student: Student;
   onUpdateStudent?: (s: Student) => void;
   currentSemester?: '1' | '2';
+  teacherInfo?: { name: string; school: string; subject: string; governorate: string };
 }
 
-const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent, currentSemester }) => {
+const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent, currentSemester, teacherInfo }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [generatingSummonsId, setGeneratingSummonsId] = useState<string | null>(null);
   
-  // تصفية السلوكيات بناءً على الفصل الدراسي الحالي فقط
   const behaviors = (student.behaviors || []).filter(b => !b.semester || b.semester === (currentSemester || '1'));
   const allGrades = student.grades || [];
 
@@ -52,7 +51,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
 
   const finalSymbol = getGradeSymbol(finalPercentage);
 
-  // تصفية الاستدعاء: فقط الاختبارات (تجاهل الأسئلة القصيرة والواجبات) والدرجة أقل من النصف
   const lowGradesForSummons = allGrades.filter(g => {
     const isExam = g.category.includes('اختبار'); 
     const isFailing = g.score < (g.maxScore / 2);
@@ -68,14 +66,39 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       }
   };
 
-  const exportPDF = async (element: HTMLElement, filename: string, setLoader: (val: boolean) => void) => {
+  const getBase64Image = async (url: string): Promise<string> => {
+      try {
+          const response = await fetch(url);
+          if (!response.ok) return ""; 
+          
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                  const result = reader.result as string;
+                  if (result && result.startsWith('data:')) {
+                      resolve(result);
+                  } else {
+                      resolve("");
+                  }
+              };
+              reader.onerror = () => resolve("");
+              reader.readAsDataURL(blob);
+          });
+      } catch (error) {
+          console.warn("Failed to load image:", url);
+          return "";
+      }
+  };
+
+  const exportPDF = async (element: HTMLElement, filename: string, setLoader: (val: boolean) => void, orientation: 'portrait' | 'landscape' = 'portrait') => {
     setLoader(true);
     const opt = {
-        margin: [5, 5, 5, 5],
+        margin: 0,
         filename: filename,
         image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
     };
 
     if (typeof html2pdf !== 'undefined') {
@@ -85,22 +108,17 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             if (Capacitor.isNativePlatform()) {
                  const pdfBase64 = await worker.output('datauristring');
                  const base64Data = pdfBase64.split(',')[1];
-                 
-                 // 1. الحفظ في الذاكرة المؤقتة (Cache)
                  const result = await Filesystem.writeFile({
                     path: filename,
                     data: base64Data,
                     directory: Directory.Cache, 
                  });
-                 
-                 // 2. فتح نافذة المشاركة (Share Sheet)
                  await Share.share({
                     title: filename,
                     url: result.uri,
-                    dialogTitle: 'مشاركة/حفظ التقرير'
+                    dialogTitle: 'مشاركة/حفظ'
                  });
             } else {
-                 // للمتصفح العادي
                  const pdfBlob = await worker.output('blob');
                  const url = URL.createObjectURL(pdfBlob);
                  const link = document.createElement('a');
@@ -126,7 +144,336 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
     }
   };
 
-  // --- تقرير الطالب الشامل ---
+  const handleGenerateCertificate = async () => {
+      setIsGeneratingPdf(true);
+      
+      let emblemSrc = '';
+      try {
+           emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+           // إذا لم يجد الشعار الرسمي، يحاول استخدام أيقونة التطبيق كبديل مؤقت
+           if (!emblemSrc) {
+              emblemSrc = await getBase64Image('icon.png');
+           }
+      } catch (e) {
+          console.warn("Logo load failed", e);
+      }
+      
+      const governorate = teacherInfo?.governorate || '...............';
+      const schoolName = teacherInfo?.school || '...............';
+      const teacherName = teacherInfo?.name || '...............';
+      const subject = teacherInfo?.subject || '...............';
+      const semesterText = currentSemester === '1' ? 'الأول' : 'الثاني';
+      
+      const element = document.createElement('div');
+      element.setAttribute('dir', 'rtl');
+      element.style.fontFamily = 'Tajawal, sans-serif';
+      element.style.padding = '0';
+      element.style.margin = '0';
+      element.style.width = '297mm'; 
+      element.style.height = '210mm';
+      element.style.backgroundColor = '#fff';
+      element.style.position = 'relative';
+
+      // تصميم الشهادة "الماسي" الرسمي
+      element.innerHTML = `
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&display=swap');
+
+            .cert-container {
+                width: 100%; height: 100%;
+                padding: 10mm;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                background-color: #fff;
+                /* خلفية مائية خفيفة جداً لإضفاء فخامة */
+                background-image: radial-gradient(circle at center, #fff 50%, #f9f9f9 100%);
+            }
+
+            /* الإطار المزدوج الفاخر */
+            .border-outer {
+                width: 100%;
+                height: 100%;
+                border: 2px solid #1A237E; /* أزرق ملكي */
+                border-radius: 20px;
+                padding: 5px;
+                box-sizing: border-box;
+                position: relative;
+                box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
+            }
+            .border-inner {
+                width: 100%;
+                height: 100%;
+                border: 4px solid #C5A059; /* ذهبي */
+                border-radius: 16px;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            /* الزخارف الجانبية */
+            .corner-decor-tl {
+                position: absolute; top: 18px; right: 18px;
+                width: 100px; height: 100px;
+                border-top: 4px solid #1A237E;
+                border-right: 4px solid #1A237E;
+                border-radius: 0 25px 0 0;
+            }
+            .corner-decor-br {
+                position: absolute; bottom: 18px; left: 18px;
+                width: 100px; height: 100px;
+                border-bottom: 4px solid #1A237E;
+                border-left: 4px solid #1A237E;
+                border-radius: 0 0 0 25px;
+            }
+            /* نقاط ذهبية للزينة */
+            .gold-dot-tl {
+                position: absolute; top: 110px; right: 14px;
+                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
+            }
+             .gold-dot-tl-2 {
+                position: absolute; top: 14px; right: 110px;
+                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
+            }
+
+            .gold-dot-br {
+                position: absolute; bottom: 110px; left: 14px;
+                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
+            }
+             .gold-dot-br-2 {
+                position: absolute; bottom: 14px; left: 110px;
+                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
+            }
+
+            /* الشعار (الخنجر) */
+            .logo-container {
+                height: 100px; /* مساحة محجوزة للشعار */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-top: 15px;
+                margin-bottom: 5px;
+            }
+            .khanjar-logo {
+                height: 100%;
+                width: auto;
+                object-fit: contain;
+                filter: drop-shadow(0 2px 4px rgba(197, 160, 89, 0.4));
+            }
+
+            /* الترويسة */
+            .header-text {
+                text-align: center;
+                font-family: 'Tajawal', sans-serif;
+                color: #444;
+                font-weight: 700;
+                font-size: 15px;
+                line-height: 1.5;
+            }
+
+            /* عنوان الشهادة */
+            .cert-title {
+                font-family: 'Aref Ruqaa', serif;
+                font-size: 85px;
+                color: #C5A059; /* ذهبي */
+                text-align: center;
+                margin-top: 5px;
+                margin-bottom: 5px;
+                text-shadow: 2px 2px 0px #f3f4f6, 3px 3px 0px rgba(0,0,0,0.1);
+                position: relative;
+                z-index: 10;
+            }
+
+            /* نص المقدمة */
+            .intro-text {
+                font-family: 'Amiri', serif;
+                font-size: 20px;
+                color: #333;
+                margin-bottom: 5px;
+            }
+
+            /* اسم الطالب - تم تصغيره ورفعه */
+            .student-name {
+                font-family: 'Amiri', serif;
+                font-size: 45px; /* تم التصغير من 60 */
+                font-weight: 700;
+                color: #1A237E; /* أزرق غامق */
+                margin: 5px 0 15px 0; /* تم تقليل الهوامش لرفعه */
+                text-align: center;
+                line-height: 1.2;
+            }
+
+            /* تفاصيل التميز */
+            .details-text {
+                font-family: 'Amiri', serif;
+                font-size: 22px;
+                color: #333;
+                text-align: center;
+                margin-bottom: 5px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            /* كبسولة التقدير */
+            .grade-box {
+                background: linear-gradient(135deg, #C5A059 0%, #D4AF37 100%);
+                color: white;
+                padding: 3px 25px;
+                border-radius: 20px;
+                font-family: 'Tajawal', sans-serif;
+                font-weight: bold;
+                font-size: 18px;
+                margin: 0 5px;
+                box-shadow: 0 2px 5px rgba(197, 160, 89, 0.3);
+            }
+
+            /* العام الدراسي */
+            .year-text {
+                font-family: 'Amiri', serif;
+                font-size: 18px;
+                color: #555;
+                font-weight: bold;
+                margin-top: 5px;
+                margin-bottom: 25px;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 10px;
+                width: 60%;
+                text-align: center;
+            }
+
+            /* التواقيع - تم عكس الترتيب */
+            .footer-section {
+                width: 85%;
+                display: flex;
+                justify-content: space-between; /* يوزع العناصر على الأطراف */
+                align-items: flex-start;
+                margin-top: auto;
+                margin-bottom: 40px;
+                padding: 0 20px;
+            }
+
+            /* في وضع RTL: العنصر الأول يكون يمين، العنصر الأخير يكون يسار */
+            
+            .signature-block {
+                text-align: center;
+                min-width: 220px;
+            }
+
+            .signature-title {
+                font-family: 'Tajawal', sans-serif;
+                font-weight: 800;
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 35px;
+            }
+            
+            .signature-line {
+                width: 100%;
+                height: 2px;
+                background: linear-gradient(90deg, transparent, #C5A059, transparent);
+                margin-bottom: 8px;
+            }
+
+            .signature-name {
+                font-family: 'Amiri', serif;
+                font-size: 18px;
+                color: #1A237E;
+                font-weight: bold;
+            }
+            
+            .date-stamp {
+                position: absolute;
+                bottom: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+                font-size: 10px;
+                color: #ccc;
+                font-family: Arial;
+            }
+        </style>
+
+        <div class="cert-container">
+            <div class="border-outer">
+                <div class="border-inner">
+                    <!-- زخارف الزوايا الذهبية والزرقاء -->
+                    <div class="corner-decor-tl"></div>
+                    <div class="gold-dot-tl"></div> <div class="gold-dot-tl-2"></div>
+                    
+                    <div class="corner-decor-br"></div>
+                    <div class="gold-dot-br"></div> <div class="gold-dot-br-2"></div>
+
+                    <!-- الشعار (الخنجر) - مساحة مخصصة في الأعلى -->
+                    <div class="logo-container">
+                        ${emblemSrc ? `<img src="${emblemSrc}" class="khanjar-logo" alt="الخنجر العماني" />` : ''}
+                    </div>
+
+                    <!-- الترويسة -->
+                    <div class="header-text">
+                        سلطنة عمان<br/>
+                        وزارة التربية والتعليم<br/>
+                        المديرية العامة للتربية والتعليم بمحافظة ${governorate}<br/>
+                        مدرسة ${schoolName}
+                    </div>
+
+                    <!-- العنوان -->
+                    <div class="cert-title">شهادة شكر وتقدير</div>
+
+                    <!-- المقدمة -->
+                    <div class="intro-text">
+                        تتشرف إدارة المدرسة ومعلم المادة بمنح هذه الشهادة للطالب المتفوق:
+                    </div>
+
+                    <!-- اسم الطالب (حجم أصغر ومرفوع للأعلى) -->
+                    <div class="student-name">${student.name}</div>
+
+                    <!-- التفاصيل -->
+                    <div class="details-text">
+                        وذلك لتميزه الدراسي وحصوله على تقدير <span class="grade-box">ممتاز</span> في مادة <span style="font-weight:bold; color:#1A237E; font-size:24px;">${subject}</span>
+                    </div>
+
+                    <!-- العام الدراسي -->
+                    <div class="year-text">
+                        خلال الفصل الدراسي ${semesterText} للعام الدراسي 2025 / 2026 م
+                    </div>
+                    
+                    <div style="font-family:'Amiri'; font-size:16px; color:#777; margin-bottom: 10px;">
+                        راجين له دوام التقدم والنجاح في مسيرته العلمية والعملية
+                    </div>
+
+                    <!-- التذييل والتواقيع -->
+                    <div class="footer-section">
+                        <!-- اليمين (الأول في RTL): معلم المادة -->
+                        <div class="signature-block">
+                            <div class="signature-title">معلم المادة</div>
+                            <div class="signature-line"></div>
+                            <div class="signature-name">${teacherName}</div>
+                        </div>
+
+                        <!-- اليسار (الأخير في RTL): مدير المدرسة -->
+                         <div class="signature-block">
+                            <div class="signature-title">مدير المدرسة</div>
+                            <div class="signature-line"></div>
+                            <div class="signature-name">.........................</div>
+                        </div>
+                    </div>
+                    
+                    <div class="date-stamp">حررت بتاريخ: ${new Date().toLocaleDateString('ar-EG')}</div>
+
+                </div>
+            </div>
+        </div>
+      `;
+
+      exportPDF(element, `شهادة_تفوق_${student.name}.pdf`, setIsGeneratingPdf, 'landscape');
+  };
+
   const handleSaveReport = () => {
     const element = document.createElement('div');
     element.setAttribute('dir', 'rtl');
@@ -145,10 +492,11 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
     element.innerHTML = `
       <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px;">
         <h1 style="margin: 0; font-size: 24px;">تقرير الطالب الدراسي والسلوكي</h1>
-        <p style="margin: 8px 0 0; font-size: 18px; color: #000; font-weight: bold;">مدرسة  ${localStorage.getItem('schoolName') || '................'}</p>
-        <p style="margin: 5px 0 0; font-size: 16px; color: #555;">تاريخ التقرير  <span dir="ltr">${new Date().toLocaleDateString('ar-EG')}</span></p>
+        <p style="margin: 8px 0 0; font-size: 18px; color: #000; font-weight: bold;">مدرسة  ${teacherInfo?.school || '................'}</p>
+        ${teacherInfo?.subject ? `<p style="margin: 5px 0 0; font-size: 14px; color: #555;">المادة: ${teacherInfo.subject}</p>` : ''}
+        <p style="margin: 5px 0 0; font-size: 14px; color: #555;">تاريخ التقرير  <span dir="ltr">${new Date().toLocaleDateString('ar-EG')}</span></p>
       </div>
-
+      
       <div style="background: #f9fafb; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e5e7eb;">
          <table style="width: 100%; border-collapse: collapse;">
             <tr>
@@ -162,7 +510,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
          </table>
       </div>
 
-      <!-- ملخص النتائج -->
       <div style="margin-bottom: 20px;">
          <h3 style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px;">ملخص النتائج</h3>
          <table style="width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #ccc;">
@@ -234,38 +581,24 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
     exportPDF(element, `تقرير_${student.name}.pdf`, setIsGeneratingPdf);
   };
 
-  // --- خطاب استدعاء ولي الأمر (المطور) ---
   const handleGenerateSummons = async (grade: GradeRecord) => {
     setGeneratingSummonsId(grade.id);
     
-    const teacherName = localStorage.getItem('teacherName') || '';
-    const schoolName = localStorage.getItem('schoolName') || '';
-    const todayDate = new Date();
-    
-    // تحويل صورة الخنجر العماني إلى Base64
+    // تحميل الشعار بنفس الطريقة لضمان الظهور
     let emblemSrc = '';
     try {
-        const response = await fetch('National_emblem_of_Oman.svg');
-        if (response.ok) {
-            const blob = await response.blob();
-            emblemSrc = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob);
-            });
-        } else {
-             // Fallback if svg is missing, try icon.png
-             const res2 = await fetch('icon.png');
-             const blob2 = await res2.blob();
-             emblemSrc = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob2);
-            });
+        emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+        if (!emblemSrc) {
+           emblemSrc = await getBase64Image('icon.png');
         }
     } catch (e) {
         console.error('Error converting emblem:', e);
     }
+
+    const teacherName = teacherInfo?.name || '';
+    const schoolName = teacherInfo?.school || '';
+    const governorate = teacherInfo?.governorate || '...............';
+    const todayDate = new Date();
 
     const element = document.createElement('div');
     element.setAttribute('dir', 'rtl');
@@ -275,34 +608,33 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
     element.style.width = '100%';
     
     element.innerHTML = `
+      <style>
+        .slash { margin: 0 3px; font-family: arial; }
+      </style>
       <div style="border: 3px double #000; padding: 15px; margin: 10px; height: 95%;">
         
-        <!-- Header with Emblem -->
         <table style="width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
             <tr>
-                <td style="width: 33%; text-align: center; font-size: 12px; line-height: 1.6; vertical-align: middle; font-weight: bold;">
+                <td style="width: 33%; text-align: center; font-size: 11px; line-height: 1.5; vertical-align: top; font-weight: bold;">
                     سلطنة عمان<br/>
                     وزارة التربية والتعليم<br/>
-                    المديرية العامة للتربية والتعليم<br/>
-                    محافظة شمال الباطنة<br/>
-                    ${schoolName}
+                    المديرية العامة للتربية والتعليم بمحافظة ${governorate}<br/>
+                    مدرسة ${schoolName}
                 </td>
-                <td style="width: 34%; text-align: center; vertical-align: middle;">
-                    ${emblemSrc ? `<img src="${emblemSrc}" style="width: 80px; height: auto; object-fit: contain;" />` : ''}
+                <td style="width: 34%; text-align: center; vertical-align: top;">
+                    ${emblemSrc ? `<img src="${emblemSrc}" style="width: 70px; height: auto; object-fit: contain;" />` : ''}
                 </td>
-                <td style="width: 33%; text-align: left; font-size: 12px; line-height: 2; vertical-align: middle; padding-left: 10px;">
-                    اليوم  <span style="font-weight:bold">${todayDate.toLocaleDateString('ar-EG', { weekday: 'long' })}</span><br/>
-                    التاريخ  <span style="font-weight:bold" dir="ltr">${todayDate.toLocaleDateString('ar-EG')}</span>
+                <td style="width: 33%; text-align: left; font-size: 11px; line-height: 1.8; vertical-align: middle; padding-left: 5px;">
+                    اليوم : <span style="font-weight:bold">${todayDate.toLocaleDateString('ar-EG', { weekday: 'long' })}</span><br/>
+                    التاريخ : <span style="font-weight:bold" dir="ltr">${todayDate.toLocaleDateString('ar-EG')}</span>
                 </td>
             </tr>
         </table>
 
-        <!-- Title -->
         <div style="text-align: center; margin-bottom: 30px;">
             <h2 style="font-size: 22px; font-weight: bold; text-decoration: underline;">دعوة ولي الأمر لشأن يتعلق بالطالب</h2>
         </div>
 
-        <!-- Body -->
         <div style="font-size: 16px; line-height: 2.2; text-align: justify; padding: 0 10px;">
             <div style="margin-bottom: 15px;">
                 <span style="font-weight: bold;">الفاضل ولي أمر الطالب </span> &nbsp; ${student.name} &nbsp; <span style="float: left; font-weight: bold;">المحترم</span>
@@ -340,18 +672,17 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             </div>
         </div>
 
-        <!-- Footer -->
         <div style="margin-top: 40px; text-align: center; font-weight: bold; font-size: 16px;">
             شاكرين حسن تعاونكم معنا
         </div>
 
         <div style="margin-top: 50px; display: flex; justify-content: space-between;">
             <div style="text-align: center; width: 45%;">
-                <p style="font-weight: bold; margin-bottom: 40px;">المعلم / ة</p>
+                <p style="font-weight: bold; margin-bottom: 40px;"><span style="unicode-bidi: embed;">المعلم<span class="slash">/</span>ـة</span></p>
                 <p>${teacherName}</p>
             </div>
              <div style="text-align: center; width: 45%;">
-                <p style="font-weight: bold; margin-bottom: 40px;">مدير المدرسة</p>
+                <p style="font-weight: bold; margin-bottom: 40px;"><span style="unicode-bidi: embed;">مدير<span class="slash">/</span>ة</span> المدرسة</p>
                 <p>.........................</p>
             </div>
         </div>
@@ -369,7 +700,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       <div className="space-y-6">
           <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col gap-6 relative">
             
-            {/* زر الحفظ */}
             <div className="absolute top-6 left-6 flex gap-2">
                 <button 
                     onClick={handleSaveReport} 
@@ -381,7 +711,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                 </button>
             </div>
 
-            {/* رأس الصفحة */}
             <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-[1.5rem] bg-blue-600 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-100">{student.name.charAt(0)}</div>
                 <div>
@@ -390,7 +719,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                 </div>
             </div>
 
-            {/* المجموع والمستوى */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 border border-slate-100 p-4 rounded-3xl flex flex-col items-center justify-center h-32 relative overflow-hidden">
                     <span className="text-[9px] font-black text-slate-400 mb-1 absolute top-3">المجموع النهائي</span>
@@ -423,8 +751,19 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                     )}
                 </div>
             </div>
+            
+            {/* زر شهادة التفوق يظهر فقط إذا كان التقدير ممتاز (أ) */}
+            {finalPercentage >= 90 && (
+                <button 
+                    onClick={handleGenerateCertificate}
+                    disabled={isGeneratingPdf}
+                    className="w-full bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-yellow-100 active:scale-95 transition-all"
+                >
+                    {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin"/> : <Medal className="w-5 h-5" />}
+                    إصدار شهادة تفوق
+                </button>
+            )}
 
-            {/* نقاط السلوك المجمعة */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 flex flex-col items-center justify-center min-h-[80px]">
                     <div className="flex items-center gap-1 mb-1">
@@ -442,7 +781,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                 </div>
             </div>
 
-            {/* استدعاء ولي أمر */}
             {lowGradesForSummons.length > 0 && (
                 <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-[2rem] animate-in slide-in-from-bottom duration-500">
                     <div className="flex items-center gap-2 mb-3">
@@ -484,7 +822,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                 </div>
             )}
 
-            {/* أزرار الاتصال */}
             {student.parentPhone && (
               <div className="flex gap-2 border-t border-gray-50 pt-4">
                 <button 
@@ -498,7 +835,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             )}
           </div>
 
-          {/* سجل السلوكيات مع الحذف */}
           <div className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm">
             <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex items-center gap-2">
                 <Award className="w-4 h-4 text-blue-600" />

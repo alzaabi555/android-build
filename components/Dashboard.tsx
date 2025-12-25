@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Student, ScheduleDay, PeriodTime } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
+import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight, FileSpreadsheet, Loader2, Upload, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface DashboardProps {
   students: Student[];
-  teacherInfo: { name: string; school: string };
+  teacherInfo: { name: string; school: string; subject: string; governorate: string };
+  onUpdateTeacherInfo: (info: { name: string; school: string; subject: string; governorate: string }) => void;
   schedule: ScheduleDay[];
   onUpdateSchedule: (newSchedule: ScheduleDay[]) => void;
   onSelectStudent: (s: Student) => void;
@@ -16,12 +17,33 @@ interface DashboardProps {
   setPeriodTimes: React.Dispatch<React.SetStateAction<PeriodTime[]>>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings, periodTimes, setPeriodTimes }) => {
+const OMAN_GOVERNORATES = [
+  "مسقط",
+  "ظفار",
+  "مسندم",
+  "البريمي",
+  "الداخلية",
+  "شمال الباطنة",
+  "جنوب الباطنة",
+  "جنوب الشرقية",
+  "شمال الشرقية",
+  "الظاهرة",
+  "الوسطى"
+];
+
+const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpdateTeacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings, periodTimes, setPeriodTimes }) => {
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const [isImportingSchedule, setIsImportingSchedule] = useState(false);
   
+  // State for editing teacher info
+  const [editName, setEditName] = useState(teacherInfo.name);
+  const [editSchool, setEditSchool] = useState(teacherInfo.school);
+  const [editSubject, setEditSubject] = useState(teacherInfo.subject);
+  const [editGovernorate, setEditGovernorate] = useState(teacherInfo.governorate);
+
   const totalStudents = students?.length || 0;
   const hour = new Date().getHours();
   
@@ -79,6 +101,24 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
       setPeriodTimes(updated);
   };
 
+  const handleSaveInfo = () => {
+      onUpdateTeacherInfo({
+          name: editName,
+          school: editSchool,
+          subject: editSubject,
+          governorate: editGovernorate
+      });
+      setIsEditingInfo(false);
+  };
+
+  const openInfoEditor = () => {
+      setEditName(teacherInfo.name);
+      setEditSchool(teacherInfo.school);
+      setEditSubject(teacherInfo.subject);
+      setEditGovernorate(teacherInfo.governorate);
+      setIsEditingInfo(true);
+  };
+
   const handleImportSchedule = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -91,7 +131,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
       
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
       
-      // تحسين البحث عن الأيام ليشمل "الأحد" و "الاحد" وهكذا
       const targetDays = [
         { key: 'أحد', full: 'الأحد' },
         { key: 'اثنين', full: 'الاثنين' },
@@ -104,7 +143,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
       let foundData = false;
 
       jsonData.forEach((row) => {
-         // البحث في الصف عن أي خلية تحتوي على جزء من اسم اليوم
          const dayIndexInRow = row.findIndex(cell => {
              if (typeof cell !== 'string') return false;
              return targetDays.some(d => cell.includes(d.key));
@@ -115,18 +153,15 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
              const matchedDayObj = targetDays.find(d => cellText.includes(d.key));
 
              if (matchedDayObj) {
-                 // استخدام الاسم الرسمي لليوم الموجود في state التطبيق
                  const scheduleDayIndex = newSchedule.findIndex(s => s.dayName === matchedDayObj.full);
                  
                  if (scheduleDayIndex !== -1) {
                      const newPeriods = [];
-                     // نأخذ 8 خلايا متتالية كحصص
                      for (let i = 1; i <= 8; i++) {
                          const val = row[dayIndexInRow + i];
                          newPeriods.push(val ? String(val).trim() : '');
                      }
                      
-                     // تحديث اليوم المحدد بالحصص الجديدة
                      newSchedule[scheduleDayIndex] = { 
                          ...newSchedule[scheduleDayIndex], 
                          periods: newPeriods 
@@ -156,16 +191,29 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-24 md:pb-8">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 md:p-8 text-white shadow-lg relative overflow-hidden flex justify-between items-center">
+      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 md:p-8 text-white shadow-lg relative overflow-hidden flex justify-between items-center group">
         <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-1 opacity-90">
             <GreetingIcon className={`${greeting.color} w-4 h-4 md:w-5 md:h-5`} />
             <span className="text-[10px] md:text-xs font-black">{greeting.text}</span>
           </div>
-          <h2 className="text-lg md:text-2xl font-black">أهلاً بك، أ. {teacherInfo?.name || 'المعلم'}</h2>
-          <div className="flex items-center gap-1.5 mt-1 opacity-80">
-            <School className="w-3 h-3 md:w-4 md:h-4" />
-            <p className="text-[10px] md:text-xs font-black">{teacherInfo?.school || 'اسم المدرسة'}</p>
+          
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg md:text-2xl font-black truncate max-w-[200px] md:max-w-md">أهلاً بك، أ. {teacherInfo?.name || 'المعلم'}</h2>
+            <button onClick={openInfoEditor} className="p-1 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><Edit2 className="w-3 h-3 text-white/80"/></button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mt-1 opacity-80">
+            <div className="flex items-center gap-1.5">
+                <School className="w-3 h-3 md:w-4 md:h-4" />
+                <p className="text-[10px] md:text-xs font-black truncate max-w-[150px]">{teacherInfo?.school || 'اسم المدرسة'}</p>
+            </div>
+            {teacherInfo?.subject && (
+                <div className="flex items-center gap-1.5 bg-white/10 px-2 py-0.5 rounded-full">
+                    <BookOpen className="w-3 h-3" />
+                    <p className="text-[9px] md:text-[10px] font-black">{teacherInfo.subject}</p>
+                </div>
+            )}
           </div>
         </div>
         
@@ -287,6 +335,46 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
           <div><p className="text-gray-400 text-[8px] md:text-xs font-black">تنبيهات سلوكية</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.negative}</p></div>
         </div>
       </div>
+
+      {/* Edit Info Modal */}
+      {isEditingInfo && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[120] flex items-center justify-center p-6" onClick={() => setIsEditingInfo(false)}>
+              <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-black text-gray-900">تعديل البيانات</h3>
+                      <button onClick={() => setIsEditingInfo(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4"/></button>
+                  </div>
+                  <div className="space-y-4">
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400">اسم المعلم / المعلمة</label>
+                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400">المادة الدراسية</label>
+                          <input type="text" value={editSubject} onChange={e => setEditSubject(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" placeholder="مثال: الرياضيات" />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400">اسم المدرسة</label>
+                          <input type="text" value={editSchool} onChange={e => setEditSchool(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400">المحافظة التعليمية</label>
+                          <select 
+                              value={editGovernorate} 
+                              onChange={e => setEditGovernorate(e.target.value)} 
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500 appearance-none"
+                          >
+                                <option value="">اختر المحافظة...</option>
+                                {OMAN_GOVERNORATES.map(gov => (
+                                    <option key={gov} value={gov}>{gov}</option>
+                                ))}
+                          </select>
+                      </div>
+                      <button onClick={handleSaveInfo} className="w-full bg-blue-600 text-white rounded-xl py-3 text-xs font-black shadow-lg shadow-blue-200 mt-2">حفظ التغييرات</button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* Edit Time Settings Modal */}
       {showTimeSettings && (
