@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Student, ScheduleDay, PeriodTime } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight } from 'lucide-react';
+import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface DashboardProps {
   students: Student[];
@@ -19,6 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [showTimeSettings, setShowTimeSettings] = useState(false);
+  const [isImportingSchedule, setIsImportingSchedule] = useState(false);
   
   const totalStudents = students?.length || 0;
   const hour = new Date().getHours();
@@ -75,6 +77,80 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
       const updated = [...periodTimes];
       updated[periodIndex] = { ...updated[periodIndex], [field]: value };
       setPeriodTimes(updated);
+  };
+
+  const handleImportSchedule = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingSchedule(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+      
+      // تحسين البحث عن الأيام ليشمل "الأحد" و "الاحد" وهكذا
+      const targetDays = [
+        { key: 'أحد', full: 'الأحد' },
+        { key: 'اثنين', full: 'الاثنين' },
+        { key: 'ثلاثاء', full: 'الثلاثاء' },
+        { key: 'أربعاء', full: 'الأربعاء' },
+        { key: 'خميس', full: 'الخميس' }
+      ];
+
+      const newSchedule = [...schedule];
+      let foundData = false;
+
+      jsonData.forEach((row) => {
+         // البحث في الصف عن أي خلية تحتوي على جزء من اسم اليوم
+         const dayIndexInRow = row.findIndex(cell => {
+             if (typeof cell !== 'string') return false;
+             return targetDays.some(d => cell.includes(d.key));
+         });
+
+         if (dayIndexInRow !== -1) {
+             const cellText = String(row[dayIndexInRow]).trim();
+             const matchedDayObj = targetDays.find(d => cellText.includes(d.key));
+
+             if (matchedDayObj) {
+                 // استخدام الاسم الرسمي لليوم الموجود في state التطبيق
+                 const scheduleDayIndex = newSchedule.findIndex(s => s.dayName === matchedDayObj.full);
+                 
+                 if (scheduleDayIndex !== -1) {
+                     const newPeriods = [];
+                     // نأخذ 8 خلايا متتالية كحصص
+                     for (let i = 1; i <= 8; i++) {
+                         const val = row[dayIndexInRow + i];
+                         newPeriods.push(val ? String(val).trim() : '');
+                     }
+                     
+                     // تحديث اليوم المحدد بالحصص الجديدة
+                     newSchedule[scheduleDayIndex] = { 
+                         ...newSchedule[scheduleDayIndex], 
+                         periods: newPeriods 
+                     };
+                     foundData = true;
+                 }
+             }
+         }
+      });
+
+      if (foundData) {
+          onUpdateSchedule(newSchedule);
+          alert('تم استيراد الجدول بنجاح! تم توزيع 8 حصص لكل يوم.');
+      } else {
+          alert('لم يتم العثور على أيام الأسبوع في الملف. تأكد من وجود أسماء الأيام (الأحد..الخميس) في خلايا منفصلة.');
+      }
+
+    } catch (error) {
+        console.error(error);
+        alert('حدث خطأ أثناء قراءة الملف. تأكد من صيغة الملف.');
+    } finally {
+        setIsImportingSchedule(false);
+        if (e.target) e.target.value = '';
+    }
   };
 
   return (
@@ -267,6 +343,24 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
               <div className="flex justify-between items-center mb-5">
                  <h3 className="font-black text-sm text-gray-900">تعديل الجدول المدرسي</h3>
                  <button onClick={() => setIsEditingSchedule(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
+              </div>
+
+              {/* Import Section */}
+              <div className="mb-4">
+                  <label className="flex items-center justify-center gap-2 w-full p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 cursor-pointer active:scale-95 transition-all shadow-sm">
+                      {isImportingSchedule ? <Loader2 className="w-4 h-4 animate-spin"/> : <FileSpreadsheet className="w-4 h-4"/>}
+                      <span className="text-xs font-black">استيراد الجدول من Excel</span>
+                      <input 
+                          type="file" 
+                          accept=".xlsx, .xls, .csv" 
+                          className="hidden" 
+                          onChange={handleImportSchedule}
+                          disabled={isImportingSchedule}
+                      />
+                  </label>
+                  <p className="text-[9px] text-gray-400 text-center mt-1.5 font-bold">
+                      يجب أن يحتوي الملف على عمود بأسماء الأيام (الأحد، الاثنين...) وتليه الحصص في نفس الصف
+                  </p>
               </div>
 
               {/* Day Tabs */}
