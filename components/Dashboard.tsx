@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Student, ScheduleDay } from '../types';
+import { Student, ScheduleDay, PeriodTime } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings } from 'lucide-react';
+import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight } from 'lucide-react';
 
 interface DashboardProps {
   students: Student[];
@@ -11,11 +11,14 @@ interface DashboardProps {
   onSelectStudent: (s: Student) => void;
   onNavigate: (tab: string) => void;
   onOpenSettings: () => void;
+  periodTimes: PeriodTime[];
+  setPeriodTimes: React.Dispatch<React.SetStateAction<PeriodTime[]>>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings, periodTimes, setPeriodTimes }) => {
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [showTimeSettings, setShowTimeSettings] = useState(false);
   
   const totalStudents = students?.length || 0;
   const hour = new Date().getHours();
@@ -68,9 +71,15 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
     onUpdateSchedule(updated);
   };
 
+  const handleTimeChange = (periodIndex: number, field: 'startTime' | 'endTime', value: string) => {
+      const updated = [...periodTimes];
+      updated[periodIndex] = { ...updated[periodIndex], [field]: value };
+      setPeriodTimes(updated);
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-24 md:pb-8">
-      {/* Welcome Header with Settings Button */}
+      {/* Welcome Header */}
       <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 md:p-8 text-white shadow-lg relative overflow-hidden flex justify-between items-center">
         <div className="relative z-10 flex-1">
           <div className="flex items-center gap-2 mb-1 opacity-90">
@@ -84,7 +93,6 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
           </div>
         </div>
         
-        {/* Settings Button Moved Here (Hidden on Desktop since it's in sidebar) */}
         <button 
             onClick={onOpenSettings} 
             className="md:hidden relative z-10 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all border border-white/10 shadow-sm"
@@ -118,21 +126,35 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
                <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs md:text-sm">
                  <Calendar className="w-4 h-4 text-blue-500" /> الجدول المدرسي
                </h3>
-               <button onClick={() => setIsEditingSchedule(true)} className="text-[9px] md:text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
-                 <Edit2 className="w-3 h-3" /> تعديل
-               </button>
+               <div className="flex gap-2">
+                   <button onClick={() => setShowTimeSettings(true)} className="text-[9px] md:text-xs bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
+                     <Clock className="w-3 h-3" /> التوقيت
+                   </button>
+                   <button onClick={() => setIsEditingSchedule(true)} className="text-[9px] md:text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
+                     <Edit2 className="w-3 h-3" /> تعديل
+                   </button>
+               </div>
             </div>
 
             {todaySchedule ? (
                <div className="space-y-2">
                  <p className="text-[9px] md:text-xs font-bold text-gray-400 mb-1">جدول اليوم: {todayName}</p>
                  <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5">
-                    {todaySchedule.periods.slice(0, 8).map((p, idx) => (
-                       <div key={idx} className={`p-1.5 md:p-3 rounded-lg text-center border ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
-                          <span className="block text-[7px] md:text-[9px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
-                          <span className="block text-[10px] md:text-xs font-black truncate leading-tight">{p || '-'}</span>
-                       </div>
-                    ))}
+                    {todaySchedule.periods.slice(0, 8).map((p, idx) => {
+                       const time = periodTimes[idx];
+                       return (
+                           <div key={idx} className={`p-1.5 md:p-3 rounded-lg text-center border relative overflow-hidden ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
+                              <span className="block text-[7px] md:text-[9px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
+                              <span className="block text-[10px] md:text-xs font-black truncate leading-tight mb-1">{p || '-'}</span>
+                              {/* عرض التوقيت */}
+                              {time && time.startTime && (
+                                  <div className="text-[6px] md:text-[8px] font-bold text-gray-400 bg-white/50 rounded px-1">
+                                      {time.startTime} - {time.endTime}
+                                  </div>
+                              )}
+                           </div>
+                       );
+                    })}
                  </div>
                </div>
             ) : (
@@ -189,6 +211,54 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, sched
           <div><p className="text-gray-400 text-[8px] md:text-xs font-black">تنبيهات سلوكية</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.negative}</p></div>
         </div>
       </div>
+
+      {/* Edit Time Settings Modal */}
+      {showTimeSettings && (
+         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-end sm:items-center justify-center" onClick={() => setShowTimeSettings(false)}>
+            <div className="bg-white w-full max-w-sm h-[80vh] sm:h-auto rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
+               <div className="flex justify-between items-center mb-6">
+                   <h3 className="font-black text-sm text-gray-900 flex items-center gap-2">
+                       <Clock className="w-4 h-4 text-blue-600"/>
+                       وقت بداية ونهاية الحصص
+                   </h3>
+                   <button onClick={() => setShowTimeSettings(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-4">
+                   <p className="text-[10px] font-bold text-gray-400 text-center mb-2">اضبط التوقيت لتفعيل جرس التنبيه التلقائي</p>
+                   {periodTimes.map((period, index) => (
+                       <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                           <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-gray-400 shadow-sm border border-gray-100">
+                               {period.periodNumber}
+                           </div>
+                           <div className="flex items-center gap-2 flex-1">
+                               <div className="flex-1 relative">
+                                   <label className="text-[8px] font-bold text-gray-400 absolute -top-1.5 right-2 bg-gray-50 px-1">من</label>
+                                   <input 
+                                     type="time" 
+                                     value={period.startTime} 
+                                     onChange={(e) => handleTimeChange(index, 'startTime', e.target.value)}
+                                     className="w-full bg-white rounded-lg border border-gray-200 text-xs font-bold px-2 py-2 outline-none text-center"
+                                   />
+                               </div>
+                               <span className="text-gray-300"><ArrowRight className="w-3 h-3"/></span>
+                               <div className="flex-1 relative">
+                                    <label className="text-[8px] font-bold text-gray-400 absolute -top-1.5 right-2 bg-gray-50 px-1">إلى</label>
+                                    <input 
+                                     type="time" 
+                                     value={period.endTime} 
+                                     onChange={(e) => handleTimeChange(index, 'endTime', e.target.value)}
+                                     className="w-full bg-white rounded-lg border border-gray-200 text-xs font-bold px-2 py-2 outline-none text-center"
+                                   />
+                               </div>
+                           </div>
+                       </div>
+                   ))}
+               </div>
+               <button onClick={() => setShowTimeSettings(false)} className="w-full py-3.5 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-blue-200 mt-2">حفظ التوقيت</button>
+            </div>
+         </div>
+      )}
 
       {/* Edit Schedule Modal */}
       {isEditingSchedule && (

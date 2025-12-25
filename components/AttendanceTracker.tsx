@@ -60,10 +60,11 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
           if (isDesktop) {
               window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
           } else {
-              window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
+              // استخدام _system لفتح التطبيق الأصلي في الأندرويد وتجنب أخطاء WebView
+              window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_system');
           }
       } else {
-          window.open(`sms:${rawPhone}?&body=${msg}`, '_blank');
+          window.open(`sms:${rawPhone}?&body=${msg}`, '_system');
       }
       setNotificationTarget(null);
   };
@@ -94,8 +95,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   return (
     <div className="space-y-4 pb-32 md:pb-8">
       
-      {/* Header: Sticky on Mobile, Normal on Desktop */}
-      <div className="sticky top-0 z-20 bg-[#f2f2f7]/80 backdrop-blur-xl md:bg-transparent md:backdrop-blur-none pb-2 transition-all">
+      {/* Header: ensure it is static (relative) not sticky */}
+      <div className="relative z-20 bg-transparent pb-2 transition-all">
           <div className="flex items-center justify-between px-1 mb-2">
              <h2 className="text-2xl font-black text-gray-900 tracking-tight">تسجيل الحضور</h2>
              <span className="text-[10px] font-bold text-gray-400 bg-white px-2 py-1 rounded-full shadow-sm">{filteredStudents.length} طالب</span>
