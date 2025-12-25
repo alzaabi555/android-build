@@ -28,7 +28,10 @@ import {
   Globe,
   Upload,
   AlertTriangle,
-  Bell
+  Bell,
+  BookOpen,
+  RefreshCcw,
+  MapPin
 } from 'lucide-react';
 
 // Toast Notification Component
@@ -50,6 +53,20 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
     </div>
   );
 };
+
+const OMAN_GOVERNORATES = [
+  "مسقط",
+  "ظفار",
+  "مسندم",
+  "البريمي",
+  "الداخلية",
+  "شمال الباطنة",
+  "جنوب الباطنة",
+  "جنوب الشرقية",
+  "شمال الشرقية",
+  "الظاهرة",
+  "الوسطى"
+];
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState(() => {
@@ -94,7 +111,6 @@ const App: React.FC = () => {
       const saved = localStorage.getItem('scheduleData');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // التحقق من صحة البيانات وتصحيح عدد الحصص إلى 8 إذا كان مختلفاً
         if (Array.isArray(parsed)) {
             return parsed.map((day: any) => ({
                 ...day,
@@ -110,7 +126,6 @@ const App: React.FC = () => {
     return defaultSchedule;
   });
 
-  // Period Times State - Ensure 8 periods structure
   const [periodTimes, setPeriodTimes] = useState<PeriodTime[]>(() => {
     const defaultTimes = Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }));
     try {
@@ -118,7 +133,6 @@ const App: React.FC = () => {
       if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-              // دمج البيانات المحفوظة مع الهيكل الافتراضي لضمان وجود 8 عناصر
               const merged = defaultTimes.map((def, i) => parsed[i] || def);
               return merged;
           }
@@ -127,14 +141,17 @@ const App: React.FC = () => {
     return defaultTimes;
   });
 
+  // إضافة حقل المحافظة (governorate)
   const [teacherInfo, setTeacherInfo] = useState(() => {
     try {
       return {
         name: localStorage.getItem('teacherName') || '',
-        school: localStorage.getItem('schoolName') || ''
+        school: localStorage.getItem('schoolName') || '',
+        subject: localStorage.getItem('subjectName') || '',
+        governorate: localStorage.getItem('governorate') || ''
       };
     } catch {
-      return { name: '', school: '' };
+      return { name: '', school: '', subject: '', governorate: '' };
     }
   });
 
@@ -147,22 +164,18 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info' | 'bell'} | null>(null);
 
-  // Audio ref for bell
   const bellAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Initialize bell sound (using a standard school bell sound URL)
     bellAudioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1085/1085-preview.mp3');
   }, []);
 
-  // Timer for In-App Period Notifications (Exact Time)
   useEffect(() => {
       const checkTime = () => {
           const now = new Date();
-          const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // HH:MM
-          const currentDay = now.getDay(); // 0 = Sunday
+          const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); 
+          const currentDay = now.getDay(); 
 
-          // Only run on weekdays (Sun-Thu) -> 0-4
           if (currentDay > 4) return;
 
           periodTimes.forEach(p => {
@@ -176,27 +189,23 @@ const App: React.FC = () => {
           });
       };
 
-      const interval = setInterval(checkTime, 1000 * 30); // Check every 30 seconds to be safe
+      const interval = setInterval(checkTime, 1000 * 30);
       return () => clearInterval(interval);
   }, [periodTimes]);
 
-  // Scheduler for Push Notifications (5 Minutes Before)
   useEffect(() => {
     const scheduleNotifications = async () => {
         try {
-            // 1. Request Permission
             const perm = await LocalNotifications.requestPermissions();
             if (perm.display !== 'granted') return;
 
-            // 2. Clear old scheduled notifications
             const pending = await LocalNotifications.getPending();
             if (pending.notifications.length > 0) {
                 await LocalNotifications.cancel(pending);
             }
 
             const now = new Date();
-            const currentDay = now.getDay(); // 0 = Sunday
-            // Skip weekends for scheduling (Fri=5, Sat=6)
+            const currentDay = now.getDay();
             if (currentDay > 4) return;
 
             const notifsToSchedule: any[] = [];
@@ -213,9 +222,8 @@ const App: React.FC = () => {
             };
 
             periodTimes.forEach(p => {
-                // Schedule before Start
                 if (p.startTime) {
-                    const notifyTime = createDateFromTime(p.startTime, -5); // 5 mins before
+                    const notifyTime = createDateFromTime(p.startTime, -5);
                     if (notifyTime && notifyTime > now) {
                         notifsToSchedule.push({
                             id: idCounter++,
@@ -227,9 +235,8 @@ const App: React.FC = () => {
                     }
                 }
 
-                // Schedule before End
                 if (p.endTime) {
-                    const notifyTime = createDateFromTime(p.endTime, -5); // 5 mins before
+                    const notifyTime = createDateFromTime(p.endTime, -5);
                     if (notifyTime && notifyTime > now) {
                          notifsToSchedule.push({
                             id: idCounter++,
@@ -244,7 +251,6 @@ const App: React.FC = () => {
 
             if (notifsToSchedule.length > 0) {
                 await LocalNotifications.schedule({ notifications: notifsToSchedule });
-                console.log('Scheduled notifications:', notifsToSchedule.length);
             }
 
         } catch (e) {
@@ -269,14 +275,12 @@ const App: React.FC = () => {
             }
         });
       } catch (e) {
-        // تجاهل الخطأ
       }
     };
     setupBackButton();
     return () => { if(backButtonListener) backButtonListener.remove(); };
   }, [showSettingsModal, activeTab]);
 
-  // Save data on change
   useEffect(() => {
     const saveData = () => {
         try {
@@ -285,6 +289,8 @@ const App: React.FC = () => {
             localStorage.setItem('activeTab', activeTab);
             localStorage.setItem('teacherName', teacherInfo.name);
             localStorage.setItem('schoolName', teacherInfo.school);
+            localStorage.setItem('subjectName', teacherInfo.subject);
+            localStorage.setItem('governorate', teacherInfo.governorate); // حفظ المحافظة
             localStorage.setItem('scheduleData', JSON.stringify(schedule));
             localStorage.setItem('periodTimes', JSON.stringify(periodTimes));
             localStorage.setItem('viewSheetUrl', viewSheetUrl);
@@ -365,7 +371,7 @@ const App: React.FC = () => {
         try {
             const json = JSON.parse(event.target?.result as string);
             if (!json.students || !Array.isArray(json.students)) throw new Error('ملف غير صالح');
-            setTeacherInfo(json.teacherInfo || { name: '', school: '' });
+            setTeacherInfo(json.teacherInfo || { name: '', school: '', subject: '', governorate: '' });
             setStudents(json.students || []);
             setClasses(json.classes || []);
             setSchedule(json.schedule || []);
@@ -383,7 +389,10 @@ const App: React.FC = () => {
     setIsSetupComplete(true);
   };
 
-  // Nav Items Configuration
+  const handleResetSetup = () => {
+    setTeacherInfo({ name: '', school: '', subject: '', governorate: '' });
+  };
+
   const navItems = [
     { id: 'dashboard', icon: BarChart3, label: 'الرئيسية' },
     { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
@@ -395,43 +404,82 @@ const App: React.FC = () => {
   if (!isSetupComplete) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-white px-8 animate-in fade-in duration-700" style={{direction: 'rtl'}}>
-        <div className="mb-8 p-4 rounded-3xl shadow-xl shadow-blue-100 bg-white ring-4 ring-blue-50">
+        <div className="mb-6 p-4 rounded-3xl shadow-xl shadow-blue-100 bg-white ring-4 ring-blue-50">
            <img src="icon.png" className="w-24 h-24 object-contain" alt="شعار التطبيق" onError={(e) => { e.currentTarget.src = ''; e.currentTarget.className='hidden'; }} />
            <School className="text-blue-600 w-16 h-16 hidden first:block" /> 
         </div>
 
         <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">راصد</h1>
-        <p className="text-sm text-slate-400 font-bold mb-12 text-center">قم بإعداد هويتك التعليمية للبدء</p>
-        <form onSubmit={handleStartApp} className="w-full max-w-sm space-y-5">
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-slate-400 mr-2">اسم المعلم / المعلمة</label>
+        <p className="text-sm text-slate-400 font-bold mb-8 text-center">قم بإعداد هويتك التعليمية للبدء</p>
+        
+        <form onSubmit={handleStartApp} className="w-full max-w-sm space-y-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 mr-2">اسم المعلم / المعلمة</label>
             <input 
                 type="text" 
-                className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
-                placeholder="" 
+                className="w-full bg-slate-50 rounded-2xl py-3 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
                 value={teacherInfo.name} 
                 onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})}
                 autoComplete="off"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-slate-400 mr-2">اسم المدرسة</label>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 mr-2">المادة الدراسية</label>
             <input 
                 type="text" 
-                className="w-full bg-slate-50 rounded-2xl py-4 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
-                placeholder="" 
+                className="w-full bg-slate-50 rounded-2xl py-3 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
+                placeholder="مثال: اللغة العربية"
+                value={teacherInfo.subject} 
+                onChange={(e) => setTeacherInfo({...teacherInfo, subject: e.target.value})}
+                autoComplete="off"
+            />
+          </div>
+           <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 mr-2">المحافظة التعليمية</label>
+            <div className="relative">
+                <select 
+                    className="w-full bg-slate-50 rounded-2xl py-3 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 appearance-none"
+                    value={teacherInfo.governorate}
+                    onChange={(e) => setTeacherInfo({...teacherInfo, governorate: e.target.value})}
+                >
+                    <option value="">اختر المحافظة...</option>
+                    {OMAN_GOVERNORATES.map(gov => (
+                        <option key={gov} value={gov}>{gov}</option>
+                    ))}
+                </select>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <MapPin className="w-4 h-4" />
+                </div>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 mr-2">اسم المدرسة</label>
+            <input 
+                type="text" 
+                className="w-full bg-slate-50 rounded-2xl py-3 px-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-slate-800 placeholder:text-slate-300" 
                 value={teacherInfo.school} 
                 onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})}
                 autoComplete="off"
             />
           </div>
-          <button 
-            type="submit" 
-            disabled={!teacherInfo.name || !teacherInfo.school} 
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all"
-          >
-            بدء الاستخدام <CheckCircle2 className="w-5 h-5" />
-          </button>
+
+          <div className="flex gap-2 pt-2">
+              <button 
+                type="button"
+                onClick={handleResetSetup}
+                className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-colors"
+                title="إعادة تعيين البيانات"
+              >
+                  <RefreshCcw className="w-5 h-5" />
+              </button>
+              <button 
+                type="submit" 
+                disabled={!teacherInfo.name || !teacherInfo.school} 
+                className="flex-1 py-3.5 bg-blue-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all"
+              >
+                بدء الاستخدام <CheckCircle2 className="w-5 h-5" />
+              </button>
+          </div>
         </form>
       </div>
     );
@@ -441,7 +489,6 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-[#f2f2f7] overflow-hidden select-none" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 bg-white border-l border-gray-200 flex-col h-full shrink-0 z-20">
          <div className="p-6 flex flex-col items-center border-b border-gray-100">
              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
@@ -473,7 +520,6 @@ const App: React.FC = () => {
          </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         <main className="flex-1 overflow-y-auto pb-[calc(80px+var(--sab))] md:pb-6 pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin scroll-smooth">
           <div className="max-w-full md:max-w-6xl mx-auto h-full pt-2 md:pt-0">
@@ -481,7 +527,8 @@ const App: React.FC = () => {
               {activeTab === 'dashboard' && (
                 <Dashboard 
                   students={students} 
-                  teacherInfo={teacherInfo} 
+                  teacherInfo={teacherInfo}
+                  onUpdateTeacherInfo={setTeacherInfo} 
                   schedule={schedule}
                   onUpdateSchedule={setSchedule}
                   onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
@@ -524,6 +571,7 @@ const App: React.FC = () => {
                     student={students.find(s => s.id === selectedStudentId)!} 
                     onUpdateStudent={handleUpdateStudent} 
                     currentSemester={currentSemester}
+                    teacherInfo={teacherInfo}
                   />
                 </div>
               )}
@@ -531,7 +579,6 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        {/* MOBILE BOTTOM NAVBAR */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/90 backdrop-blur-xl border-t border-gray-300/50 pb-[max(20px,env(safe-area-inset-bottom))] z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
           <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
             {navItems.map(item => (
@@ -548,7 +595,6 @@ const App: React.FC = () => {
         </nav>
       </div>
 
-      {/* Shared Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
            <div className="bg-white w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
@@ -563,7 +609,7 @@ const App: React.FC = () => {
                     <Info className="text-white w-8 h-8" />
                  </div>
                  <h2 className="text-xl font-black text-gray-900 mb-0.5">حول التطبيق</h2>
-                 <p className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.0</p>
+                 <p className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.1</p>
                  
                  <div className="space-y-0.5 mb-4">
                     <p className="text-[10px] font-bold text-gray-400">تصميم وتطوير</p>

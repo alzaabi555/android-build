@@ -3,11 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- منع التخزين المؤقت نهائياً لضمان تحميل التحديثات -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
   <title>راصد</title>
   
   <!-- إعدادات أيقونة التطبيق -->
-  <link rel="icon" type="image/png" href="icon.png?v=3">
-  <link rel="apple-touch-icon" href="icon.png?v=3">
+  <link rel="icon" type="image/png" href="icon.png?v=5">
+  <link rel="apple-touch-icon" href="icon.png?v=5">
   
   <!-- إعدادات iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -130,8 +136,8 @@
 
   <div id="root"></div>
 
-  <!-- إضافة v=4 لفرض تحديث الملف في المتصفح -->
-  <script type="module" src="./index.js?v=4"></script>
+  <!-- إضافة v=5 لفرض تحميل النسخة الجديدة وعدم استخدام النسخة المخزنة -->
+  <script type="module" src="./index.js?v=5.0.0"></script>
   
   <script>
     window.onerror = function(msg, url, lineNo, columnNo, error) {
