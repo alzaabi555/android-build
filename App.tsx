@@ -80,28 +80,51 @@ const App: React.FC = () => {
     } catch { return []; }
   });
 
+  // Schedule State - Ensure 8 periods structure
   const [schedule, setSchedule] = useState<ScheduleDay[]>(() => {
-    try {
-      const saved = localStorage.getItem('scheduleData');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [
+    const defaultSchedule = [
       { dayName: 'الأحد', periods: Array(8).fill('') },
       { dayName: 'الاثنين', periods: Array(8).fill('') },
       { dayName: 'الثلاثاء', periods: Array(8).fill('') },
       { dayName: 'الأربعاء', periods: Array(8).fill('') },
       { dayName: 'الخميس', periods: Array(8).fill('') },
     ];
+
+    try {
+      const saved = localStorage.getItem('scheduleData');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // التحقق من صحة البيانات وتصحيح عدد الحصص إلى 8 إذا كان مختلفاً
+        if (Array.isArray(parsed)) {
+            return parsed.map((day: any) => ({
+                ...day,
+                periods: Array.isArray(day.periods) 
+                    ? (day.periods.length === 8 
+                        ? day.periods 
+                        : [...day.periods, ...Array(Math.max(0, 8 - day.periods.length)).fill('')].slice(0, 8))
+                    : Array(8).fill('')
+            }));
+        }
+      }
+    } catch {}
+    return defaultSchedule;
   });
 
-  // State for Period Times
+  // Period Times State - Ensure 8 periods structure
   const [periodTimes, setPeriodTimes] = useState<PeriodTime[]>(() => {
+    const defaultTimes = Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }));
     try {
       const saved = localStorage.getItem('periodTimes');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+              // دمج البيانات المحفوظة مع الهيكل الافتراضي لضمان وجود 8 عناصر
+              const merged = defaultTimes.map((def, i) => parsed[i] || def);
+              return merged;
+          }
+      }
     } catch {}
-    // Default times (Empty)
-    return Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }));
+    return defaultTimes;
   });
 
   const [teacherInfo, setTeacherInfo] = useState(() => {
