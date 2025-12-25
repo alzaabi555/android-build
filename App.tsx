@@ -1,5 +1,5 @@
-import React, { useState, useEffect, Suspense } from 'react';
-import { Student, ScheduleDay } from './types';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
+import { Student, ScheduleDay, PeriodTime } from './types';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
 import AttendanceTracker from './components/AttendanceTracker';
@@ -8,6 +8,7 @@ import StudentReport from './components/StudentReport';
 import ExcelImport from './components/ExcelImport';
 import NoorPlatform from './components/NoorPlatform';
 import { App as CapApp } from '@capacitor/app';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
   Users, 
   CalendarCheck, 
@@ -26,22 +27,26 @@ import {
   Share,
   Globe,
   Upload,
-  AlertTriangle
+  AlertTriangle,
+  Bell
 } from 'lucide-react';
 
 // Toast Notification Component
-const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error' | 'info', onClose: () => void }) => {
+const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error' | 'info' | 'bell', onClose: () => void }) => {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bg = type === 'success' ? 'bg-emerald-600/90' : type === 'error' ? 'bg-rose-600/90' : 'bg-blue-600/90';
+  const bg = type === 'success' ? 'bg-emerald-600/95' : type === 'error' ? 'bg-rose-600/95' : type === 'bell' ? 'bg-amber-500/95' : 'bg-blue-600/95';
+  const Icon = type === 'bell' ? Bell : (type === 'success' ? CheckCircle2 : (type === 'error' ? AlertTriangle : Info));
 
   return (
-    <div className={`fixed top-safe left-1/2 transform -translate-x-1/2 ${bg} backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-2 animate-in slide-in-from-top-2 duration-300 border border-white/10 mt-4`}>
-      {type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <Info className="w-4 h-4" />}
-      <span className="text-xs font-black">{message}</span>
+    <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 ${bg} backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl z-[200] flex items-center gap-3 animate-in slide-in-from-top-4 duration-300 border border-white/10 max-w-[90vw]`}>
+      <div className="bg-white/20 p-2 rounded-full">
+         <Icon className="w-5 h-5" />
+      </div>
+      <span className="text-sm font-bold">{message}</span>
     </div>
   );
 };
@@ -89,6 +94,16 @@ const App: React.FC = () => {
     ];
   });
 
+  // State for Period Times
+  const [periodTimes, setPeriodTimes] = useState<PeriodTime[]>(() => {
+    try {
+      const saved = localStorage.getItem('periodTimes');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    // Default times (Empty)
+    return Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }));
+  });
+
   const [teacherInfo, setTeacherInfo] = useState(() => {
     try {
       return {
@@ -107,7 +122,115 @@ const App: React.FC = () => {
   const [isSetupComplete, setIsSetupComplete] = useState(!!teacherInfo.name && !!teacherInfo.school);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info'} | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info' | 'bell'} | null>(null);
+
+  // Audio ref for bell
+  const bellAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Initialize bell sound (using a standard school bell sound URL)
+    bellAudioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1085/1085-preview.mp3');
+  }, []);
+
+  // Timer for In-App Period Notifications (Exact Time)
+  useEffect(() => {
+      const checkTime = () => {
+          const now = new Date();
+          const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // HH:MM
+          const currentDay = now.getDay(); // 0 = Sunday
+
+          // Only run on weekdays (Sun-Thu) -> 0-4
+          if (currentDay > 4) return;
+
+          periodTimes.forEach(p => {
+              if (p.startTime === currentTime || p.endTime === currentTime) {
+                   const type = p.startTime === currentTime ? 'بداية' : 'نهاية';
+                   setToast({ message: `حان موعد ${type} الحصة ${p.periodNumber}`, type: 'bell' });
+                   if (bellAudioRef.current) {
+                       bellAudioRef.current.play().catch(e => console.log('Audio play failed', e));
+                   }
+              }
+          });
+      };
+
+      const interval = setInterval(checkTime, 1000 * 30); // Check every 30 seconds to be safe
+      return () => clearInterval(interval);
+  }, [periodTimes]);
+
+  // Scheduler for Push Notifications (5 Minutes Before)
+  useEffect(() => {
+    const scheduleNotifications = async () => {
+        try {
+            // 1. Request Permission
+            const perm = await LocalNotifications.requestPermissions();
+            if (perm.display !== 'granted') return;
+
+            // 2. Clear old scheduled notifications
+            const pending = await LocalNotifications.getPending();
+            if (pending.notifications.length > 0) {
+                await LocalNotifications.cancel(pending);
+            }
+
+            const now = new Date();
+            const currentDay = now.getDay(); // 0 = Sunday
+            // Skip weekends for scheduling (Fri=5, Sat=6)
+            if (currentDay > 4) return;
+
+            const notifsToSchedule: any[] = [];
+            let idCounter = 1000;
+
+            const createDateFromTime = (timeStr: string, offsetMinutes: number) => {
+                if (!timeStr) return null;
+                const [h, m] = timeStr.split(':').map(Number);
+                const d = new Date();
+                d.setHours(h);
+                d.setMinutes(m + offsetMinutes);
+                d.setSeconds(0);
+                return d;
+            };
+
+            periodTimes.forEach(p => {
+                // Schedule before Start
+                if (p.startTime) {
+                    const notifyTime = createDateFromTime(p.startTime, -5); // 5 mins before
+                    if (notifyTime && notifyTime > now) {
+                        notifsToSchedule.push({
+                            id: idCounter++,
+                            title: 'تنبيه الحصص 🔔',
+                            body: `الحصة ${p.periodNumber} تبدأ بعد 5 دقائق`,
+                            schedule: { at: notifyTime },
+                            sound: 'beep.wav'
+                        });
+                    }
+                }
+
+                // Schedule before End
+                if (p.endTime) {
+                    const notifyTime = createDateFromTime(p.endTime, -5); // 5 mins before
+                    if (notifyTime && notifyTime > now) {
+                         notifsToSchedule.push({
+                            id: idCounter++,
+                            title: 'تنبيه الحصص 🔔',
+                            body: `الحصة ${p.periodNumber} تنتهي بعد 5 دقائق`,
+                            schedule: { at: notifyTime },
+                            sound: 'beep.wav'
+                        });
+                    }
+                }
+            });
+
+            if (notifsToSchedule.length > 0) {
+                await LocalNotifications.schedule({ notifications: notifsToSchedule });
+                console.log('Scheduled notifications:', notifsToSchedule.length);
+            }
+
+        } catch (e) {
+            console.error('Error scheduling notifications:', e);
+        }
+    };
+
+    scheduleNotifications();
+  }, [periodTimes]);
 
   useEffect(() => {
     let backButtonListener: any;
@@ -140,6 +263,7 @@ const App: React.FC = () => {
             localStorage.setItem('teacherName', teacherInfo.name);
             localStorage.setItem('schoolName', teacherInfo.school);
             localStorage.setItem('scheduleData', JSON.stringify(schedule));
+            localStorage.setItem('periodTimes', JSON.stringify(periodTimes));
             localStorage.setItem('viewSheetUrl', viewSheetUrl);
             localStorage.setItem('currentSemester', currentSemester);
         } catch (e) {
@@ -149,12 +273,11 @@ const App: React.FC = () => {
 
     saveData();
 
-    // إضافة مستمع لحدث إغلاق الصفحة (مهم لنسخة الكمبيوتر)
     window.addEventListener('beforeunload', saveData);
     return () => {
         window.removeEventListener('beforeunload', saveData);
     };
-  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester]);
+  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester, periodTimes]);
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
@@ -188,7 +311,7 @@ const App: React.FC = () => {
 
   const handleBackupData = async () => {
     try {
-      const dataToSave = { teacherInfo, students, classes, schedule, exportDate: new Date().toISOString() };
+      const dataToSave = { teacherInfo, students, classes, schedule, periodTimes, exportDate: new Date().toISOString() };
       const fileName = `madrasati_backup_${new Date().toISOString().split('T')[0]}.json`;
       const file = new File([JSON.stringify(dataToSave, null, 2)], fileName, { type: 'application/json' });
 
@@ -223,6 +346,7 @@ const App: React.FC = () => {
             setStudents(json.students || []);
             setClasses(json.classes || []);
             setSchedule(json.schedule || []);
+            if(json.periodTimes) setPeriodTimes(json.periodTimes);
             setToast({ message: 'تم استعادة البيانات', type: 'success' });
             setShowSettingsModal(false);
         } catch (error) { setToast({ message: 'ملف غير صالح', type: 'error' }); }
@@ -291,10 +415,10 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-[#f2f2f7] overflow-hidden" style={{direction: 'rtl'}}>
+    <div className="flex h-screen bg-[#f2f2f7] overflow-hidden select-none" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* DESKTOP SIDEBAR (Visible ONLY on md and up) */}
+      {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 bg-white border-l border-gray-200 flex-col h-full shrink-0 z-20">
          <div className="p-6 flex flex-col items-center border-b border-gray-100">
              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
@@ -328,8 +452,7 @@ const App: React.FC = () => {
 
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Dynamic padding: pb increased on mobile for bottom bar, reduced on desktop */}
-        <main className="flex-1 overflow-y-auto pb-[calc(80px+var(--sab))] md:pb-6 pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin">
+        <main className="flex-1 overflow-y-auto pb-[calc(80px+var(--sab))] md:pb-6 pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin scroll-smooth">
           <div className="max-w-full md:max-w-6xl mx-auto h-full pt-2 md:pt-0">
             <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
               {activeTab === 'dashboard' && (
@@ -341,6 +464,8 @@ const App: React.FC = () => {
                   onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
                   onNavigate={(tab) => setActiveTab(tab)}
                   onOpenSettings={() => setShowSettingsModal(true)}
+                  periodTimes={periodTimes}
+                  setPeriodTimes={setPeriodTimes}
                 />
               )}
               {activeTab === 'students' && (
@@ -352,6 +477,8 @@ const App: React.FC = () => {
                   onUpdateStudent={handleUpdateStudent} 
                   onViewReport={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }}
                   onSwitchToImport={() => setActiveTab('import')}
+                  currentSemester={currentSemester}
+                  onSemesterChange={setCurrentSemester}
                 />
               )}
               {activeTab === 'attendance' && <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />}
@@ -369,10 +496,11 @@ const App: React.FC = () => {
               {activeTab === 'noor' && <NoorPlatform />}
               {activeTab === 'report' && selectedStudentId && (
                 <div className="animate-in slide-in-from-right duration-300 max-w-3xl mx-auto">
-                  <button onClick={() => setActiveTab('students')} className="mb-4 flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 w-fit px-3 py-1.5 rounded-full"><ChevronLeft className="w-4 h-4" /> العودة للقائمة</button>
+                  <button onClick={() => setActiveTab('students')} className="mb-4 flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-blue-50 w-fit px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"><ChevronLeft className="w-4 h-4" /> العودة للقائمة</button>
                   <StudentReport 
                     student={students.find(s => s.id === selectedStudentId)!} 
-                    onUpdateStudent={handleUpdateStudent} // Pass update function
+                    onUpdateStudent={handleUpdateStudent} 
+                    currentSemester={currentSemester}
                   />
                 </div>
               )}
@@ -380,9 +508,8 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        {/* MOBILE BOTTOM NAVBAR (Visible ONLY on Mobile/Tablet) */}
-        {/* iOS Style: Translucent background, thin border, refined icons */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/85 backdrop-blur-xl border-t border-gray-300/50 pb-[max(20px,env(safe-area-inset-bottom))] z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+        {/* MOBILE BOTTOM NAVBAR */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/90 backdrop-blur-xl border-t border-gray-300/50 pb-[max(20px,env(safe-area-inset-bottom))] z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
           <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
             {navItems.map(item => (
               <button 
@@ -398,10 +525,9 @@ const App: React.FC = () => {
         </nav>
       </div>
 
-      {/* Shared Settings Modal (Responsive) */}
+      {/* Shared Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
-           {/* Mobile: Bottom Sheet | Desktop: Centered Modal */}
            <div className="bg-white w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
               <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" />
               

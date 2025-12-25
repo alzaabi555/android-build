@@ -26,6 +26,7 @@ export interface BehaviorRecord {
   type: BehaviorType;
   description: string;
   points: number;
+  semester?: '1' | '2'; // إضافة الفصل الدراسي
 }
 
 export interface GradeRecord {
@@ -35,12 +36,18 @@ export interface GradeRecord {
   score: number;
   maxScore: number;
   date: string;
-  semester: '1' | '2'; // 1 for First Semester, 2 for Second Semester
+  semester: '1' | '2'; 
 }
 
 export interface ScheduleDay {
   dayName: string;
   periods: string[]; // 8 periods
+}
+
+export interface PeriodTime {
+  periodNumber: number;
+  startTime: string; // "07:15"
+  endTime: string;   // "07:55"
 }
 
 export interface AppState {
