@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Student, BehaviorType } from '../types';
-import { Search, ThumbsUp, ThumbsDown, FileBarChart, X, UserPlus, Filter, Edit, FileSpreadsheet, GraduationCap, ChevronRight, Clock, Download, MessageCircle, Smartphone, Loader2 } from 'lucide-react';
+import { Search, ThumbsUp, ThumbsDown, FileBarChart, X, UserPlus, Filter, Edit, FileSpreadsheet, GraduationCap, ChevronRight, Clock, Download, MessageCircle, Smartphone, Loader2, Sparkles, Shuffle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -32,6 +32,11 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   
+  // Random Picker State
+  const [showRandomPicker, setShowRandomPicker] = useState(false);
+  const [randomStudent, setRandomStudent] = useState<Student | null>(null);
+  const [isShuffling, setIsShuffling] = useState(false);
+  
   const [studentNameInput, setStudentNameInput] = useState('');
   const [studentClassInput, setStudentClassInput] = useState('');
   const [studentPhoneInput, setStudentPhoneInput] = useState('');
@@ -51,6 +56,31 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       return { earned, total };
   };
 
+  const getBase64Image = async (url: string): Promise<string> => {
+      try {
+          const response = await fetch(url);
+          if (!response.ok) return ""; 
+          
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                  const result = reader.result as string;
+                  if (result && result.startsWith('data:')) {
+                      resolve(result);
+                  } else {
+                      resolve("");
+                  }
+              };
+              reader.onerror = () => resolve("");
+              reader.readAsDataURL(blob);
+          });
+      } catch (error) {
+          console.warn("Failed to load image:", url);
+          return "";
+      }
+  };
+
   const openCreateModal = () => {
     setModalMode('create');
     setStudentNameInput('');
@@ -67,6 +97,26 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
     setStudentPhoneInput(student.parentPhone || '');
     setEditingStudentId(student.id);
     setShowStudentModal(true);
+  };
+
+  // --- Random Picker Logic ---
+  const handleRandomPick = () => {
+      if (filteredStudents.length === 0) return;
+      setIsShuffling(true);
+      setShowRandomPicker(true);
+      setRandomStudent(null);
+
+      let counter = 0;
+      const maxIterations = 20;
+      const interval = setInterval(() => {
+          const randomIndex = Math.floor(Math.random() * filteredStudents.length);
+          setRandomStudent(filteredStudents[randomIndex]);
+          counter++;
+          if (counter >= maxIterations) {
+              clearInterval(interval);
+              setIsShuffling(false);
+          }
+      }, 100);
   };
 
   const handleSaveStudent = () => {
@@ -127,20 +177,29 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
   const handleSendNotification = (method: 'whatsapp' | 'sms') => {
       if (!showContactChoice) return;
       const { student, message } = showContactChoice;
-      const rawPhone = student.parentPhone!.replace(/[^0-9+]/g, '');
-      const cleanPhone = rawPhone.startsWith('0') ? '966' + rawPhone.substring(1) : rawPhone;
-      const encodedMsg = encodeURIComponent(message);
-      const isDesktop = window.innerWidth > 768;
+      
+      // تنظيف الرقم وإعداده للصيغة الدولية العمانية
+      let cleanPhone = student.parentPhone!.replace(/[^0-9]/g, '');
+      
+      // إزالة الصفرين في البداية إذا وجدا
+      if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+      
+      // إذا كان الرقم 8 خانات (رقم محلي عماني)، أضف المفتاح الدولي 968
+      if (cleanPhone.length === 8) {
+          cleanPhone = '968' + cleanPhone;
+      }
+      // إذا كان الرقم يبدأ بـ 0 (مثل 09xxxxxxx)، أزل الصفر وأضف 968
+      else if (cleanPhone.startsWith('0')) {
+          cleanPhone = '968' + cleanPhone.substring(1);
+      }
 
+      const encodedMsg = encodeURIComponent(message);
+      
       if (method === 'whatsapp') {
-          if (isDesktop) {
-             window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`, '_blank');
-          } else {
-             // استخدام _system بدلاً من _blank لإجبار الأندرويد على فتح التطبيق الأصلي
-             window.open(`https://wa.me/${cleanPhone}?text=${encodedMsg}`, '_system');
-          }
+          // استخدام api.whatsapp.com و _system لضمان فتح التطبيق الأصلي في جميع البيئات
+          window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`, '_system');
       } else {
-          window.open(`sms:${rawPhone}?&body=${encodedMsg}`, '_system');
+          window.open(`sms:${cleanPhone}?&body=${encodedMsg}`, '_system');
       }
       setShowContactChoice(null);
   };
@@ -153,6 +212,17 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
     }
     
     setIsGeneratingPdf(true);
+
+    let emblemSrc = '';
+    try {
+        emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+        if (!emblemSrc) {
+            emblemSrc = await getBase64Image('icon.png');
+        }
+    } catch (e) {
+        console.warn('Failed to load logo', e);
+    }
+
     const element = document.createElement('div');
     element.setAttribute('dir', 'rtl');
     element.style.fontFamily = 'Tajawal, sans-serif';
@@ -162,19 +232,43 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
     const reportTitle = selectedClass === 'all' ? 'تقرير جميع الطلاب' : `تقرير الصف ${selectedClass}`;
     const dateStr = new Date().toLocaleDateString('ar-EG');
     const semName = currentSemester === '1' ? 'الفصل الدراسي الأول' : 'الفصل الدراسي الثاني';
+    const schoolName = localStorage.getItem('schoolName') || '';
 
     let htmlContent = `
-        <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px;">
-          <h1 style="margin: 0; font-size: 24px;">${reportTitle} - ${semName}</h1>
-          <p style="margin: 5px 0 0; font-size: 14px; color: #555;">مدرسة  ${localStorage.getItem('schoolName') || ''}</p>
-          <p style="margin: 2px 0 0; font-size: 12px; color: #777;">التاريخ  <span dir="ltr">${dateStr}</span></p>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px;">
+          <div style="text-align: right;">
+             <p style="margin: 0; font-size: 12px;">سلطنة عمان</p>
+             <p style="margin: 0; font-size: 12px;">وزارة التربية والتعليم</p>
+             <p style="margin: 0; font-size: 12px;">مدرسة ${schoolName}</p>
+          </div>
+          
+          <div style="text-align: center;">
+              ${emblemSrc ? `<img src="${emblemSrc}" style="height: 60px; width: auto;" />` : ''}
+          </div>
+
+          <div style="text-align: left;">
+              <p style="margin: 0; font-size: 12px;">التاريخ: <span dir="ltr">${dateStr}</span></p>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+           <h1 style="margin: 0; font-size: 20px; font-weight: bold;">${reportTitle}</h1>
+           <h2 style="margin: 5px 0 0; font-size: 16px; color: #555;">${semName}</h2>
         </div>
     `;
 
     filteredStudents.forEach(student => {
         // تصفية البيانات حسب الفصل المختار للتقرير
-        const relevantGrades = (student.grades || []).filter(g => !g.semester || g.semester === currentSemester);
-        const relevantBehaviors = (student.behaviors || []).filter(b => !b.semester || b.semester === currentSemester);
+        // التأكد من أن التصفية صحيحة وتأخذ القيم الفارغة كفصل أول افتراضياً
+        const relevantGrades = (student.grades || []).filter(g => {
+            if (!g.semester) return currentSemester === '1'; // إذا لم يحدد الفصل، نعتبره الأول
+            return g.semester === currentSemester;
+        });
+
+        const relevantBehaviors = (student.behaviors || []).filter(b => {
+             if (!b.semester) return currentSemester === '1';
+             return b.semester === currentSemester;
+        });
         
         const earned = relevantGrades.reduce((a, b) => a + (Number(b.score) || 0), 0);
         const total = relevantGrades.reduce((a, b) => a + (Number(b.maxScore) || 0), 0);
@@ -182,7 +276,6 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
         const posPoints = relevantBehaviors.filter(b => b.type === 'positive').reduce((a, b) => a + b.points, 0);
         const negPoints = relevantBehaviors.filter(b => b.type === 'negative').reduce((a, b) => a + Math.abs(b.points), 0);
         
-        // بناء جدول الدرجات التفصيلي للطالب
         const gradesRows = relevantGrades.map(g => `
             <tr>
                 <td style="border:1px solid #ddd; padding:4px; font-size:10px;">${g.category}</td>
@@ -190,7 +283,6 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
             </tr>
         `).join('');
 
-        // بناء قائمة السلوكيات
         const behaviorItems = relevantBehaviors.map(b => `
             <span style="display:inline-block; font-size:9px; padding:2px 5px; margin:2px; border-radius:4px; background:${b.type === 'positive' ? '#d1fae5' : '#fee2e2'}; color:${b.type === 'positive' ? '#065f46' : '#991b1b'};">
                 ${b.description}
@@ -200,14 +292,14 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
         htmlContent += `
         <div style="border: 1px solid #000; padding: 10px; border-radius: 8px; margin-bottom: 15px; page-break-inside: avoid; background: #fff;">
            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 8px;">
-              <h3 style="margin:0; font-size:14px;">${student.name}</h3>
+              <h3 style="margin:0; font-size:14px; font-weight: bold;">${student.name}</h3>
               <div style="font-size:12px; font-weight:bold;">المجموع  ${earned} من ${total} | سلوك  <span style="color:green">+${posPoints}</span> - <span style="color:red">-${negPoints}</span></div>
            </div>
            
            <div style="display:flex; gap:10px;">
                <div style="flex:1;">
                    <h4 style="margin:0 0 5px 0; font-size:11px; text-decoration:underline;">الدرجات </h4>
-                   ${relevantGrades.length > 0 ? `<table style="width:100%; border-collapse:collapse;">${gradesRows}</table>` : '<p style="font-size:10px; color:#999;">لا توجد درجات</p>'}
+                   ${relevantGrades.length > 0 ? `<table style="width:100%; border-collapse:collapse;">${gradesRows}</table>` : '<p style="font-size:10px; color:#999;">لا توجد درجات مسجلة لهذا الفصل</p>'}
                </div>
                <div style="flex:1;">
                    <h4 style="margin:0 0 5px 0; font-size:11px; text-decoration:underline;">السلوكيات </h4>
@@ -237,15 +329,12 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                  const pdfBase64 = await worker.output('datauristring');
                  const base64Data = pdfBase64.split(',')[1];
                  
-                 // 1. الحفظ في الذاكرة المؤقتة (Cache) أولاً
                  const result = await Filesystem.writeFile({
                     path: filename,
                     data: base64Data,
-                    directory: Directory.Cache, // استخدام الكاش بدلاً من المستندات لتجنب الفوضى
+                    directory: Directory.Cache,
                  });
                  
-                 // 2. فتح نافذة المشاركة (Share Sheet)
-                 // سيظهر للمستخدم خيار "Save to Files" (حفظ في الملفات)
                  await Share.share({
                     title: 'مشاركة التقرير',
                     text: `تقرير شامل للصف ${selectedClass}`,
@@ -270,7 +359,6 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
 
         } catch (err) {
             console.error(err);
-            // لا نظهر تنبيه خطأ في حال قام المستخدم بإلغاء المشاركة
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -315,6 +403,13 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                 onChange={(e) => setSearchTerm(e.target.value)} 
             />
           </div>
+          <button 
+            onClick={handleRandomPick}
+            className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl shadow-sm active:scale-95 flex items-center justify-center transition-all border border-amber-200 hover:bg-amber-200" 
+            title="القرعة العشوائية"
+          >
+             <Sparkles className="w-5 h-5" />
+          </button>
           <button 
             onClick={handleSaveClassReport} 
             disabled={isGeneratingPdf}
@@ -384,6 +479,49 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
             </div>
         )}
       </div>
+
+      {/* Random Picker Modal */}
+      {showRandomPicker && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[250] flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => setShowRandomPicker(false)}>
+              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                  
+                  {/* Decorative Elements */}
+                  <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-amber-50 to-transparent pointer-events-none"></div>
+                  <Sparkles className="absolute top-6 right-6 w-8 h-8 text-amber-300 animate-pulse" />
+                  <Sparkles className="absolute bottom-6 left-6 w-6 h-6 text-amber-300 animate-pulse delay-75" />
+
+                  <div className="w-20 h-20 bg-amber-100 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-amber-100 relative z-10">
+                      <Shuffle className={`w-10 h-10 text-amber-600 ${isShuffling ? 'animate-spin' : ''}`} />
+                  </div>
+
+                  <h3 className="text-xl font-black text-gray-900 mb-2 relative z-10">القرعة العشوائية</h3>
+                  <p className="text-xs font-bold text-gray-400 mb-8 relative z-10">اختر طالباً للمشاركة في الحصة</p>
+
+                  <div className="w-full bg-gray-50 rounded-2xl p-6 min-h-[120px] flex items-center justify-center border-2 border-dashed border-gray-200 mb-6 relative z-10">
+                      {randomStudent ? (
+                          <div className="animate-in zoom-in duration-300">
+                              <h2 className="text-2xl font-black text-blue-600 leading-tight">{randomStudent.name}</h2>
+                              <p className="text-xs font-bold text-gray-400 mt-2">{randomStudent.classes[0]}</p>
+                          </div>
+                      ) : (
+                          <p className="text-gray-300 text-sm font-bold">اضغط ابدأ للاختيار...</p>
+                      )}
+                  </div>
+
+                  <button 
+                    onClick={handleRandomPick} 
+                    disabled={isShuffling}
+                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-200 active:scale-95 transition-all relative z-10 disabled:opacity-70 disabled:scale-100"
+                  >
+                     {isShuffling ? 'جاري الاختيار...' : 'ابدأ القرعة مرة أخرى'}
+                  </button>
+                  
+                  <button onClick={() => setShowRandomPicker(false)} className="mt-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors relative z-10">
+                      إغلاق
+                  </button>
+              </div>
+          </div>
+      )}
 
       {showStudentModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center sm:p-6 animate-in fade-in duration-200" onClick={() => setShowStudentModal(false)}>

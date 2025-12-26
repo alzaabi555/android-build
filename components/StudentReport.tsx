@@ -66,6 +66,28 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       }
   };
 
+  const handleWhatsAppClick = () => {
+    if (!student.parentPhone) return;
+    
+    // تنظيف الرقم وإعداده للصيغة الدولية العمانية
+    let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
+    
+    // إزالة الصفرين في البداية إذا وجدا
+    if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+    
+    // إذا كان الرقم 8 خانات (رقم محلي عماني)، أضف المفتاح الدولي 968
+    if (cleanPhone.length === 8) {
+        cleanPhone = '968' + cleanPhone;
+    }
+    // إذا كان الرقم يبدأ بـ 0 (مثل 09xxxxxxx)، أزل الصفر وأضف 968
+    else if (cleanPhone.startsWith('0')) {
+        cleanPhone = '968' + cleanPhone.substring(1);
+    }
+
+    // استخدام api.whatsapp.com و _system لضمان فتح التطبيق الأصلي
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}`, '_system');
+  };
+
   const getBase64Image = async (url: string): Promise<string> => {
       try {
           const response = await fetch(url);
@@ -150,7 +172,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       let emblemSrc = '';
       try {
            emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
-           // إذا لم يجد الشعار الرسمي، يحاول استخدام أيقونة التطبيق كبديل مؤقت
            if (!emblemSrc) {
               emblemSrc = await getBase64Image('icon.png');
            }
@@ -174,247 +195,49 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       element.style.backgroundColor = '#fff';
       element.style.position = 'relative';
 
-      // تصميم الشهادة "الماسي" الرسمي
       element.innerHTML = `
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap');
             @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
             @import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&display=swap');
 
-            .cert-container {
-                width: 100%; height: 100%;
-                padding: 10mm;
-                box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                background-color: #fff;
-                /* خلفية مائية خفيفة جداً لإضفاء فخامة */
-                background-image: radial-gradient(circle at center, #fff 50%, #f9f9f9 100%);
-            }
-
-            /* الإطار المزدوج الفاخر */
-            .border-outer {
-                width: 100%;
-                height: 100%;
-                border: 2px solid #1A237E; /* أزرق ملكي */
-                border-radius: 20px;
-                padding: 5px;
-                box-sizing: border-box;
-                position: relative;
-                box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
-            }
-            .border-inner {
-                width: 100%;
-                height: 100%;
-                border: 4px solid #C5A059; /* ذهبي */
-                border-radius: 16px;
-                position: relative;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-            }
-
-            /* الزخارف الجانبية */
-            .corner-decor-tl {
-                position: absolute; top: 18px; right: 18px;
-                width: 100px; height: 100px;
-                border-top: 4px solid #1A237E;
-                border-right: 4px solid #1A237E;
-                border-radius: 0 25px 0 0;
-            }
-            .corner-decor-br {
-                position: absolute; bottom: 18px; left: 18px;
-                width: 100px; height: 100px;
-                border-bottom: 4px solid #1A237E;
-                border-left: 4px solid #1A237E;
-                border-radius: 0 0 0 25px;
-            }
-            /* نقاط ذهبية للزينة */
-            .gold-dot-tl {
-                position: absolute; top: 110px; right: 14px;
-                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
-            }
-             .gold-dot-tl-2 {
-                position: absolute; top: 14px; right: 110px;
-                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
-            }
-
-            .gold-dot-br {
-                position: absolute; bottom: 110px; left: 14px;
-                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
-            }
-             .gold-dot-br-2 {
-                position: absolute; bottom: 14px; left: 110px;
-                width: 8px; height: 8px; background: #C5A059; border-radius: 50%;
-            }
-
-            /* الشعار (الخنجر) */
-            .logo-container {
-                height: 100px; /* مساحة محجوزة للشعار */
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-top: 15px;
-                margin-bottom: 5px;
-            }
-            .khanjar-logo {
-                height: 100%;
-                width: auto;
-                object-fit: contain;
-                filter: drop-shadow(0 2px 4px rgba(197, 160, 89, 0.4));
-            }
-
-            /* الترويسة */
-            .header-text {
-                text-align: center;
-                font-family: 'Tajawal', sans-serif;
-                color: #444;
-                font-weight: 700;
-                font-size: 15px;
-                line-height: 1.5;
-            }
-
-            /* عنوان الشهادة */
-            .cert-title {
-                font-family: 'Aref Ruqaa', serif;
-                font-size: 85px;
-                color: #C5A059; /* ذهبي */
-                text-align: center;
-                margin-top: 5px;
-                margin-bottom: 5px;
-                text-shadow: 2px 2px 0px #f3f4f6, 3px 3px 0px rgba(0,0,0,0.1);
-                position: relative;
-                z-index: 10;
-            }
-
-            /* نص المقدمة */
-            .intro-text {
-                font-family: 'Amiri', serif;
-                font-size: 20px;
-                color: #333;
-                margin-bottom: 5px;
-            }
-
-            /* اسم الطالب - تم تصغيره ورفعه */
-            .student-name {
-                font-family: 'Amiri', serif;
-                font-size: 45px; /* تم التصغير من 60 */
-                font-weight: 700;
-                color: #1A237E; /* أزرق غامق */
-                margin: 5px 0 15px 0; /* تم تقليل الهوامش لرفعه */
-                text-align: center;
-                line-height: 1.2;
-            }
-
-            /* تفاصيل التميز */
-            .details-text {
-                font-family: 'Amiri', serif;
-                font-size: 22px;
-                color: #333;
-                text-align: center;
-                margin-bottom: 5px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-            }
-
-            /* كبسولة التقدير */
-            .grade-box {
-                background: linear-gradient(135deg, #C5A059 0%, #D4AF37 100%);
-                color: white;
-                padding: 3px 25px;
-                border-radius: 20px;
-                font-family: 'Tajawal', sans-serif;
-                font-weight: bold;
-                font-size: 18px;
-                margin: 0 5px;
-                box-shadow: 0 2px 5px rgba(197, 160, 89, 0.3);
-            }
-
-            /* العام الدراسي */
-            .year-text {
-                font-family: 'Amiri', serif;
-                font-size: 18px;
-                color: #555;
-                font-weight: bold;
-                margin-top: 5px;
-                margin-bottom: 25px;
-                border-bottom: 1px solid #eee;
-                padding-bottom: 10px;
-                width: 60%;
-                text-align: center;
-            }
-
-            /* التواقيع - تم عكس الترتيب */
-            .footer-section {
-                width: 85%;
-                display: flex;
-                justify-content: space-between; /* يوزع العناصر على الأطراف */
-                align-items: flex-start;
-                margin-top: auto;
-                margin-bottom: 40px;
-                padding: 0 20px;
-            }
-
-            /* في وضع RTL: العنصر الأول يكون يمين، العنصر الأخير يكون يسار */
-            
-            .signature-block {
-                text-align: center;
-                min-width: 220px;
-            }
-
-            .signature-title {
-                font-family: 'Tajawal', sans-serif;
-                font-weight: 800;
-                font-size: 16px;
-                color: #555;
-                margin-bottom: 35px;
-            }
-            
-            .signature-line {
-                width: 100%;
-                height: 2px;
-                background: linear-gradient(90deg, transparent, #C5A059, transparent);
-                margin-bottom: 8px;
-            }
-
-            .signature-name {
-                font-family: 'Amiri', serif;
-                font-size: 18px;
-                color: #1A237E;
-                font-weight: bold;
-            }
-            
-            .date-stamp {
-                position: absolute;
-                bottom: 8px;
-                left: 50%;
-                transform: translateX(-50%);
-                font-size: 10px;
-                color: #ccc;
-                font-family: Arial;
-            }
+            .cert-container { width: 100%; height: 100%; padding: 10mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #fff; background-image: radial-gradient(circle at center, #fff 50%, #f9f9f9 100%); }
+            .border-outer { width: 100%; height: 100%; border: 2px solid #1A237E; border-radius: 20px; padding: 5px; box-sizing: border-box; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.02); }
+            .border-inner { width: 100%; height: 100%; border: 4px solid #C5A059; border-radius: 16px; position: relative; display: flex; flex-direction: column; align-items: center; }
+            .corner-decor-tl { position: absolute; top: 18px; right: 18px; width: 100px; height: 100px; border-top: 4px solid #1A237E; border-right: 4px solid #1A237E; border-radius: 0 25px 0 0; }
+            .corner-decor-br { position: absolute; bottom: 18px; left: 18px; width: 100px; height: 100px; border-bottom: 4px solid #1A237E; border-left: 4px solid #1A237E; border-radius: 0 0 0 25px; }
+            .gold-dot-tl { position: absolute; top: 110px; right: 14px; width: 8px; height: 8px; background: #C5A059; border-radius: 50%; }
+            .gold-dot-tl-2 { position: absolute; top: 14px; right: 110px; width: 8px; height: 8px; background: #C5A059; border-radius: 50%; }
+            .gold-dot-br { position: absolute; bottom: 110px; left: 14px; width: 8px; height: 8px; background: #C5A059; border-radius: 50%; }
+            .gold-dot-br-2 { position: absolute; bottom: 14px; left: 110px; width: 8px; height: 8px; background: #C5A059; border-radius: 50%; }
+            .logo-container { height: 100px; display: flex; align-items: center; justify-content: center; margin-top: 15px; margin-bottom: 5px; }
+            .khanjar-logo { height: 100%; width: auto; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(197, 160, 89, 0.4)); }
+            .header-text { text-align: center; font-family: 'Tajawal', sans-serif; color: #444; font-weight: 700; font-size: 15px; line-height: 1.5; }
+            .cert-title { font-family: 'Aref Ruqaa', serif; font-size: 85px; color: #C5A059; text-align: center; margin-top: 5px; margin-bottom: 5px; text-shadow: 2px 2px 0px #f3f4f6, 3px 3px 0px rgba(0,0,0,0.1); position: relative; z-index: 10; }
+            .intro-text { font-family: 'Amiri', serif; font-size: 20px; color: #333; margin-bottom: 5px; text-align: center; }
+            .student-name { font-family: 'Amiri', serif; font-size: 45px; font-weight: 700; color: #1A237E; margin: 0 0 10px 0; text-align: center; line-height: 1.2; }
+            .details-text { font-family: 'Amiri', serif; font-size: 22px; color: #333; text-align: center; margin-bottom: 5px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+            .grade-box { background: linear-gradient(135deg, #C5A059 0%, #D4AF37 100%); color: white; padding: 3px 25px; border-radius: 20px; font-family: 'Tajawal', sans-serif; font-weight: bold; font-size: 18px; margin: 0 5px; box-shadow: 0 2px 5px rgba(197, 160, 89, 0.3); }
+            .year-text { font-family: 'Amiri', serif; font-size: 18px; color: #555; font-weight: bold; margin-top: 5px; margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 10px; width: 60%; text-align: center; }
+            .footer-section { width: 85%; display: flex; justify-content: space-between; align-items: flex-start; margin-top: auto; margin-bottom: 40px; padding: 0 20px; }
+            .signature-block { text-align: center; min-width: 220px; }
+            .signature-title { font-family: 'Tajawal', sans-serif; font-weight: 800; font-size: 16px; color: #555; margin-bottom: 35px; }
+            .signature-line { width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #C5A059, transparent); margin-bottom: 8px; }
+            .signature-name { font-family: 'Amiri', serif; font-size: 18px; color: #1A237E; font-weight: bold; }
+            .date-stamp { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #ccc; font-family: Arial; }
+            .student-label { font-family: 'Amiri', serif; font-size: 16px; color: #777; margin-bottom: 0; }
         </style>
 
         <div class="cert-container">
             <div class="border-outer">
                 <div class="border-inner">
-                    <!-- زخارف الزوايا الذهبية والزرقاء -->
-                    <div class="corner-decor-tl"></div>
-                    <div class="gold-dot-tl"></div> <div class="gold-dot-tl-2"></div>
-                    
-                    <div class="corner-decor-br"></div>
-                    <div class="gold-dot-br"></div> <div class="gold-dot-br-2"></div>
+                    <div class="corner-decor-tl"></div> <div class="gold-dot-tl"></div> <div class="gold-dot-tl-2"></div>
+                    <div class="corner-decor-br"></div> <div class="gold-dot-br"></div> <div class="gold-dot-br-2"></div>
 
-                    <!-- الشعار (الخنجر) - مساحة مخصصة في الأعلى -->
                     <div class="logo-container">
                         ${emblemSrc ? `<img src="${emblemSrc}" class="khanjar-logo" alt="الخنجر العماني" />` : ''}
                     </div>
 
-                    <!-- الترويسة -->
                     <div class="header-text">
                         سلطنة عمان<br/>
                         وزارة التربية والتعليم<br/>
@@ -422,50 +245,35 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                         مدرسة ${schoolName}
                     </div>
 
-                    <!-- العنوان -->
                     <div class="cert-title">شهادة شكر وتقدير</div>
 
-                    <!-- المقدمة -->
-                    <div class="intro-text">
-                        تتشرف إدارة المدرسة ومعلم المادة بمنح هذه الشهادة للطالب المتفوق:
-                    </div>
+                    <div class="intro-text">تتشرف إدارة المدرسة بمنح هذه الشهادة لـ:</div>
 
-                    <!-- اسم الطالب (حجم أصغر ومرفوع للأعلى) -->
+                    <div class="student-label">الطالب(ـة)</div>
                     <div class="student-name">${student.name}</div>
 
-                    <!-- التفاصيل -->
                     <div class="details-text">
-                        وذلك لتميزه الدراسي وحصوله على تقدير <span class="grade-box">ممتاز</span> في مادة <span style="font-weight:bold; color:#1A237E; font-size:24px;">${subject}</span>
+                        وذلك للتميز الدراسي والحصول على تقدير <span class="grade-box">ممتاز</span> في مادة <span style="font-weight:bold; color:#1A237E; font-size:24px;">${subject}</span>
                     </div>
 
-                    <!-- العام الدراسي -->
-                    <div class="year-text">
-                        خلال الفصل الدراسي ${semesterText} للعام الدراسي 2025 / 2026 م
-                    </div>
+                    <div class="year-text">خلال الفصل الدراسي ${semesterText} للعام الدراسي 2025 / 2026 م</div>
                     
-                    <div style="font-family:'Amiri'; font-size:16px; color:#777; margin-bottom: 10px;">
-                        راجين له دوام التقدم والنجاح في مسيرته العلمية والعملية
-                    </div>
+                    <div style="font-family:'Amiri'; font-size:16px; color:#777; margin-bottom: 10px;">مع أطيب الأمنيات بدوام التقدم والنجاح</div>
 
-                    <!-- التذييل والتواقيع -->
                     <div class="footer-section">
-                        <!-- اليمين (الأول في RTL): معلم المادة -->
                         <div class="signature-block">
-                            <div class="signature-title">معلم المادة</div>
+                            <div class="signature-title">المعلم(ـة)</div>
                             <div class="signature-line"></div>
                             <div class="signature-name">${teacherName}</div>
                         </div>
-
-                        <!-- اليسار (الأخير في RTL): مدير المدرسة -->
                          <div class="signature-block">
-                            <div class="signature-title">مدير المدرسة</div>
+                            <div class="signature-title">مدير(ة) المدرسة</div>
                             <div class="signature-line"></div>
                             <div class="signature-name">.........................</div>
                         </div>
                     </div>
                     
                     <div class="date-stamp">حررت بتاريخ: ${new Date().toLocaleDateString('ar-EG')}</div>
-
                 </div>
             </div>
         </div>
@@ -500,11 +308,11 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       <div style="background: #f9fafb; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e5e7eb;">
          <table style="width: 100%; border-collapse: collapse;">
             <tr>
-              <td style="padding: 6px; font-weight: bold; width: 120px;">اسم الطالب </td>
+              <td style="padding: 6px; font-weight: bold; width: 120px;">اسم الطالب(ـة)</td>
               <td style="padding: 6px;">${student.name}</td>
             </tr>
             <tr>
-              <td style="padding: 6px; font-weight: bold;">المقيد بالصف </td>
+              <td style="padding: 6px; font-weight: bold;">المقيد(ة) بالصف </td>
               <td style="padding: 6px;">${student.classes[0] || '-'}</td>
             </tr>
          </table>
@@ -575,7 +383,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       
       <div style="margin-top: 30px; text-align: left; padding-left: 20px;">
          <p>يعتمد،،</p>
-         <p style="font-weight: bold;">مدير المدرسة</p>
+         <p style="font-weight: bold;">مدير(ة) المدرسة</p>
       </div>
     `;
     exportPDF(element, `تقرير_${student.name}.pdf`, setIsGeneratingPdf);
@@ -584,7 +392,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
   const handleGenerateSummons = async (grade: GradeRecord) => {
     setGeneratingSummonsId(grade.id);
     
-    // تحميل الشعار بنفس الطريقة لضمان الظهور
     let emblemSrc = '';
     try {
         emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
@@ -637,11 +444,11 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
 
         <div style="font-size: 16px; line-height: 2.2; text-align: justify; padding: 0 10px;">
             <div style="margin-bottom: 15px;">
-                <span style="font-weight: bold;">الفاضل ولي أمر الطالب </span> &nbsp; ${student.name} &nbsp; <span style="float: left; font-weight: bold;">المحترم</span>
+                <span style="font-weight: bold;">الفاضل(ـة) ولي أمر الطالب(ـة) </span> &nbsp; ${student.name} &nbsp; <span style="float: left; font-weight: bold;">المحترم(ـة)</span>
             </div>
             
             <div style="margin-bottom: 15px;">
-                <span style="font-weight: bold;">المقيد بالصف </span> &nbsp; ${student.classes[0] || '...'}
+                <span style="font-weight: bold;">المقيد(ة) بالصف </span> &nbsp; ${student.classes[0] || '...'}
             </div>
 
             <div style="margin-bottom: 20px; text-align: center; font-weight: bold;">
@@ -653,7 +460,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             </p>
             
             <p style="margin-bottom: 20px;">
-                نأمل حضوركم لبحث بعض الأمور المتعلقة بابنكم ولنا في حضوركم أمل بهدف تعاون البيت والمدرسة لتحقيق الرسالة التربوية الهادفة التي نسعى إليها وتأمل المدرسة حضوركم.
+                نأمل حضوركم لبحث بعض الأمور المتعلقة بالطالب(ـة) ولنا في حضوركم أمل بهدف تعاون البيت والمدرسة لتحقيق الرسالة التربوية الهادفة التي نسعى إليها وتأمل المدرسة حضوركم.
             </p>
 
             <div style="margin-top: 30px;">
@@ -662,7 +469,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             </div>
 
             <div style="margin-top: 20px;">
-                <span style="font-weight: bold;">ومراجعة الأستاذ </span> &nbsp; ${teacherName}
+                <span style="font-weight: bold;">ومراجعة الأستاذ(ة) </span> &nbsp; ${teacherName}
             </div>
             
             <div style="margin-top: 25px; padding: 15px; border: 1px solid #333; border-radius: 8px;">
@@ -678,11 +485,11 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
 
         <div style="margin-top: 50px; display: flex; justify-content: space-between;">
             <div style="text-align: center; width: 45%;">
-                <p style="font-weight: bold; margin-bottom: 40px;"><span style="unicode-bidi: embed;">المعلم<span class="slash">/</span>ـة</span></p>
+                <p style="font-weight: bold; margin-bottom: 40px;">المعلم(ـة)</p>
                 <p>${teacherName}</p>
             </div>
              <div style="text-align: center; width: 45%;">
-                <p style="font-weight: bold; margin-bottom: 40px;"><span style="unicode-bidi: embed;">مدير<span class="slash">/</span>ة</span> المدرسة</p>
+                <p style="font-weight: bold; margin-bottom: 40px;">مدير(ة) المدرسة</p>
                 <p>.........................</p>
             </div>
         </div>
@@ -825,7 +632,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             {student.parentPhone && (
               <div className="flex gap-2 border-t border-gray-50 pt-4">
                 <button 
-                  onClick={() => window.open(`https://wa.me/${student.parentPhone}`, '_system')}
+                  onClick={handleWhatsAppClick}
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black active:scale-95 transition-all"
                 >
                     <MessageCircle className="w-4 h-4"/> واتساب

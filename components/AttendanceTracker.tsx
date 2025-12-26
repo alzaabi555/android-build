@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Student, AttendanceStatus } from '../types';
-import { Check, X, Clock, Calendar, Filter, MessageCircle, ChevronDown, Smartphone } from 'lucide-react';
+import { Check, X, Clock, Calendar, Filter, MessageCircle, ChevronDown, Smartphone, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 interface AttendanceTrackerProps {
   students: Student[];
@@ -40,6 +41,31 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
     }));
   };
 
+  // --- ميزة التحضير الجماعي ---
+  const handleMarkAll = (status: AttendanceStatus | 'reset') => {
+      if (classFilter === 'all' && students.length > 50) {
+          if (!confirm(`سيتم تطبيق هذا الإجراء على جميع الطلاب (${students.length}). هل أنت متأكد؟`)) return;
+      }
+      
+      setStudents(prev => prev.map(s => {
+          // إذا كان الفلتر مفعلاً، طبق فقط على طلاب الفصل المختار
+          if (classFilter !== 'all' && (!s.classes || !s.classes.includes(classFilter))) {
+              return s;
+          }
+
+          const filtered = s.attendance.filter(a => a.date !== selectedDate);
+          
+          if (status === 'reset') {
+              return { ...s, attendance: filtered };
+          }
+          
+          return {
+              ...s,
+              attendance: [...filtered, { date: selectedDate, status }]
+          };
+      }));
+  };
+
   const handleNotifyParent = (student: Student) => {
     if (!student.parentPhone) {
       alert('رقم ولي الأمر غير متوفر لهذا الطالب');
@@ -51,20 +77,28 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   const performNotification = (method: 'whatsapp' | 'sms') => {
       if(!notificationTarget || !notificationTarget.parentPhone) return;
 
-      const rawPhone = notificationTarget.parentPhone.replace(/[^0-9+]/g, '');
-      const cleanPhone = rawPhone.startsWith('0') ? '966' + rawPhone.substring(1) : rawPhone;
+      // تنظيف الرقم وإعداده للصيغة الدولية العمانية
+      let cleanPhone = notificationTarget.parentPhone.replace(/[^0-9]/g, '');
+
+      // إزالة الصفرين في البداية إذا وجدا
+      if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+
+      // إذا كان الرقم 8 خانات (رقم محلي عماني)، أضف المفتاح الدولي 968
+      if (cleanPhone.length === 8) {
+          cleanPhone = '968' + cleanPhone;
+      }
+      // إذا كان الرقم يبدأ بـ 0 (مثل 09xxxxxxx)، أزل الصفر وأضف 968
+      else if (cleanPhone.startsWith('0')) {
+          cleanPhone = '968' + cleanPhone.substring(1);
+      }
+
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${notificationTarget.name} قد تغيب عن المدرسة اليوم ${formatDateDisplay(selectedDate)}.`);
-      const isDesktop = window.innerWidth > 768;
 
       if (method === 'whatsapp') {
-          if (isDesktop) {
-              window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
-          } else {
-              // استخدام _system لفتح التطبيق الأصلي في الأندرويد وتجنب أخطاء WebView
-              window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_system');
-          }
+          // استخدام api.whatsapp.com و _system لضمان فتح التطبيق الأصلي في جميع البيئات
+          window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_system');
       } else {
-          window.open(`sms:${rawPhone}?&body=${msg}`, '_system');
+          window.open(`sms:${cleanPhone}?&body=${msg}`, '_system');
       }
       setNotificationTarget(null);
   };
@@ -102,7 +136,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
              <span className="text-[10px] font-bold text-gray-400 bg-white px-2 py-1 rounded-full shadow-sm">{filteredStudents.length} طالب</span>
           </div>
 
-          <div className="bg-white rounded-xl p-1.5 shadow-sm border border-gray-200/50 flex gap-2">
+          <div className="bg-white rounded-xl p-1.5 shadow-sm border border-gray-200/50 flex gap-2 mb-2">
             {/* Date Picker */}
             <div className="flex-1 relative bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group">
                 <div className="absolute inset-0 flex items-center justify-between px-3 pointer-events-none">
@@ -139,6 +173,23 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                   {classes.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
             </div>
+          </div>
+          
+          {/* Quick Actions (Batch) */}
+          <div className="flex gap-2">
+              <button 
+                  onClick={() => handleMarkAll('present')}
+                  className="flex-1 bg-emerald-50 text-emerald-700 py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm border border-emerald-100"
+              >
+                  <CheckCircle2 className="w-4 h-4" /> تحديد الكل "حاضر"
+              </button>
+              <button 
+                  onClick={() => handleMarkAll('reset')}
+                  className="px-4 bg-gray-50 text-gray-500 py-3 rounded-xl text-xs font-black active:scale-95 transition-all border border-gray-200"
+                  title="إعادة تعيين اليوم"
+              >
+                  <RotateCcw className="w-4 h-4" />
+              </button>
           </div>
       </div>
 
