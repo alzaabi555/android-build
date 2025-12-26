@@ -70,17 +70,9 @@ const OMAN_GOVERNORATES = [
   "الوسطى"
 ];
 
-// Helper to decode credits (Simple Obfuscation)
+// Helper to decode credits
 const getCredits = () => {
-    try {
-        // "محمد درويش الزعابي" encoded in Base64
-        const name = decodeURIComponent(escape(window.atob('2YXYrdmF2K8g2K/YsdmI2YrYtCDYp9mE2LLYo9in2KjZjg==')));
-        // "98344555" encoded
-        const phone = window.atob('OTgzNDQ1NTU=');
-        return { name, phone };
-    } catch {
-        return { name: "محمد درويش الزعابي", phone: "98344555" };
-    }
+    return { name: "محمد درويش الزعابي", phone: "98344555" };
 };
 
 const App: React.FC = () => {

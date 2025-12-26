@@ -8,7 +8,7 @@
   },
   "main": "electron/main.js",
   "scripts": {
-    "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --external:react --external:react-dom --external:lucide-react --external:recharts --external:xlsx && cp index.html manifest.json www/ && (cp icon.png www/ || true) && (cp noor_logo.png www/ || true) && (cp National_emblem_of_Oman.svg www/ || true)",
+    "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --external:react --external:react-dom --external:lucide-react --external:recharts --external:xlsx && cp index.html manifest.json www/ && (cp icon.png www/ || true) && (cp noor_logo.png www/ || true) && (cp oman_logo.png www/ || true)",
     "prebuild": "mkdir -p www",
     "sync": "npx cap sync",
     "add-android": "npx cap add android",
