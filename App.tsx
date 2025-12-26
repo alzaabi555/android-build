@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
-import { Student, ScheduleDay, PeriodTime } from './types';
+import { Student, ScheduleDay, PeriodTime, Group } from './types';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
 import AttendanceTracker from './components/AttendanceTracker';
@@ -7,6 +7,7 @@ import GradeBook from './components/GradeBook';
 import StudentReport from './components/StudentReport';
 import ExcelImport from './components/ExcelImport';
 import NoorPlatform from './components/NoorPlatform';
+import GroupCompetition from './components/GroupCompetition';
 import { App as CapApp } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { 
@@ -31,7 +32,8 @@ import {
   Bell,
   BookOpen,
   RefreshCcw,
-  MapPin
+  MapPin,
+  Trophy
 } from 'lucide-react';
 
 // Toast Notification Component
@@ -68,6 +70,19 @@ const OMAN_GOVERNORATES = [
   "الوسطى"
 ];
 
+// Helper to decode credits (Simple Obfuscation)
+const getCredits = () => {
+    try {
+        // "محمد درويش الزعابي" encoded in Base64
+        const name = decodeURIComponent(escape(window.atob('2YXYrdmF2K8g2K/YsdmI2YrYtCDYp9mE2LLYo9in2KjZjg==')));
+        // "98344555" encoded
+        const phone = window.atob('OTgzNDQ1NTU=');
+        return { name, phone };
+    } catch {
+        return { name: "محمد درويش الزعابي", phone: "98344555" };
+    }
+};
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState(() => {
     try {
@@ -95,6 +110,28 @@ const App: React.FC = () => {
       const saved = localStorage.getItem('classesData');
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
+  });
+
+  // Groups State
+  const [groups, setGroups] = useState<Group[]>(() => {
+      try {
+          const saved = localStorage.getItem('groupsData');
+          if (saved) return JSON.parse(saved);
+          // Default Groups
+          return [
+              { id: 'g1', name: 'الصقور', color: 'emerald' },
+              { id: 'g2', name: 'النمور', color: 'orange' },
+              { id: 'g3', name: 'النجوم', color: 'purple' },
+              { id: 'g4', name: 'الرواد', color: 'blue' },
+          ];
+      } catch { 
+          return [
+              { id: 'g1', name: 'الصقور', color: 'emerald' },
+              { id: 'g2', name: 'النمور', color: 'orange' },
+              { id: 'g3', name: 'النجوم', color: 'purple' },
+              { id: 'g4', name: 'الرواد', color: 'blue' },
+          ]; 
+      }
   });
 
   // Schedule State - Ensure 8 periods structure
@@ -165,6 +202,7 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info' | 'bell'} | null>(null);
 
   const bellAudioRef = useRef<HTMLAudioElement | null>(null);
+  const credits = getCredits();
 
   useEffect(() => {
     bellAudioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1085/1085-preview.mp3');
@@ -286,6 +324,7 @@ const App: React.FC = () => {
         try {
             localStorage.setItem('studentData', JSON.stringify(students));
             localStorage.setItem('classesData', JSON.stringify(classes));
+            localStorage.setItem('groupsData', JSON.stringify(groups));
             localStorage.setItem('activeTab', activeTab);
             localStorage.setItem('teacherName', teacherInfo.name);
             localStorage.setItem('schoolName', teacherInfo.school);
@@ -306,7 +345,7 @@ const App: React.FC = () => {
     return () => {
         window.removeEventListener('beforeunload', saveData);
     };
-  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester, periodTimes]);
+  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester, periodTimes, groups]);
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
@@ -340,7 +379,7 @@ const App: React.FC = () => {
 
   const handleBackupData = async () => {
     try {
-      const dataToSave = { teacherInfo, students, classes, schedule, periodTimes, exportDate: new Date().toISOString() };
+      const dataToSave = { teacherInfo, students, classes, groups, schedule, periodTimes, exportDate: new Date().toISOString() };
       const fileName = `madrasati_backup_${new Date().toISOString().split('T')[0]}.json`;
       const file = new File([JSON.stringify(dataToSave, null, 2)], fileName, { type: 'application/json' });
 
@@ -374,6 +413,7 @@ const App: React.FC = () => {
             setTeacherInfo(json.teacherInfo || { name: '', school: '', subject: '', governorate: '' });
             setStudents(json.students || []);
             setClasses(json.classes || []);
+            setGroups(json.groups || []);
             setSchedule(json.schedule || []);
             if(json.periodTimes) setPeriodTimes(json.periodTimes);
             setToast({ message: 'تم استعادة البيانات', type: 'success' });
@@ -398,6 +438,7 @@ const App: React.FC = () => {
     { id: 'attendance', icon: CalendarCheck, label: 'الحضور' }, 
     { id: 'students', icon: Users, label: 'الطلاب' },
     { id: 'grades', icon: GraduationCap, label: 'الدرجات' },
+    { id: 'group-competition', icon: Trophy, label: 'الدوري' }, // New Tab
     { id: 'noor', icon: Globe, label: 'نور' },
   ];
 
@@ -486,7 +527,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-[#f2f2f7] overflow-hidden select-none" style={{direction: 'rtl'}}>
+    // استبدال h-screen بـ h-full لأن الارتفاع محدد في الـ body بـ dvh
+    <div className="flex h-full bg-[#f2f2f7] overflow-hidden select-none" style={{direction: 'rtl'}}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <aside className="hidden md:flex w-64 bg-white border-l border-gray-200 flex-col h-full shrink-0 z-20">
@@ -521,7 +563,10 @@ const App: React.FC = () => {
       </aside>
 
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <main className="flex-1 overflow-y-auto pb-[calc(80px+var(--sab))] md:pb-6 pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin scroll-smooth">
+        <main 
+          // تعديل الحشوة السفلية لضمان عدم اختفاء المحتوى خلف شريط التنقل السفلي في الايفون
+          className="flex-1 overflow-y-auto pt-[var(--sat)] md:pt-6 px-4 md:px-8 scrollbar-thin scroll-smooth pb-[calc(80px+var(--sab))]"
+        >
           <div className="max-w-full md:max-w-6xl mx-auto h-full pt-2 md:pt-0">
             <Suspense fallback={<div className="flex items-center justify-center h-40"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
               {activeTab === 'dashboard' && (
@@ -562,6 +607,16 @@ const App: React.FC = () => {
                   onSemesterChange={setCurrentSemester}
                 />
               )}
+               {activeTab === 'group-competition' && (
+                <GroupCompetition 
+                  students={students}
+                  classes={classes}
+                  onUpdateStudent={handleUpdateStudent}
+                  groups={groups}
+                  onUpdateGroups={setGroups}
+                  setStudents={setStudents}
+                />
+              )}
               {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
               {activeTab === 'noor' && <NoorPlatform />}
               {activeTab === 'report' && selectedStudentId && (
@@ -579,7 +634,10 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/90 backdrop-blur-xl border-t border-gray-300/50 pb-[max(20px,env(safe-area-inset-bottom))] z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+        <nav 
+          // ضمان ارتفاع الشريط السفلي بشكل صحيح مع المنطقة الآمنة
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-[#f2f2f7]/95 backdrop-blur-xl border-t border-gray-300/50 z-50 shadow-[0_-1px_3px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom,20px)]"
+        >
           <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
             {navItems.map(item => (
               <button 
@@ -609,13 +667,13 @@ const App: React.FC = () => {
                     <Info className="text-white w-8 h-8" />
                  </div>
                  <h2 className="text-xl font-black text-gray-900 mb-0.5">حول التطبيق</h2>
-                 <p className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.1</p>
+                 <p className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-3">الإصدار 3.2</p>
                  
                  <div className="space-y-0.5 mb-4">
                     <p className="text-[10px] font-bold text-gray-400">تصميم وتطوير</p>
-                    <h3 className="text-sm font-black text-gray-800">محمد درويش الزعابي</h3>
+                    <h3 className="text-sm font-black text-gray-800">{credits.name}</h3>
                     <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-gray-400">
-                      <Phone className="w-3 h-3" /> <span>98344555</span>
+                      <Phone className="w-3 h-3" /> <span>{credits.phone}</span>
                     </div>
                  </div>
 

@@ -33,6 +33,7 @@
   
   <style>
     :root { 
+      /* المتغيرات الخاصة بالمناطق الآمنة للآيفون */
       --sat: env(safe-area-inset-top, 20px); 
       --sab: env(safe-area-inset-bottom, 20px); 
     }
@@ -40,17 +41,31 @@
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
       -webkit-tap-highlight-color: transparent;
+      /* استخدام dvh يحل مشكلة شريط العنوان في السفاري */
+      height: 100dvh;
     }
     body { 
       font-family: 'Tajawal', sans-serif; 
       background-color: #f2f2f7; 
       margin: 0; padding: 0; 
-      height: 100vh; width: 100vw;
+      /* تثبيت الجسم لمنع التمرير المطاطي في الآيفون */
+      position: fixed;
+      inset: 0;
+      height: 100dvh; 
+      width: 100vw;
       overflow: hidden;
       -webkit-user-select: none;
       user-select: none;
       font-size: 14px;
     }
+    /* الحاوية الرئيسية تأخذ كامل الارتفاع المتاح */
+    #root {
+      height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
     #initial-loader {
       position: fixed; inset: 0; background: #f2f2f7; 
       display: flex; flex-direction: column; align-items: center; 

@@ -9,6 +9,14 @@ export interface Student {
   grades: GradeRecord[];
   parentPhone?: string;
   avatar?: string;
+  spentCoins?: number; 
+  groupId?: string | null; // معرف الفريق (ديناميكي)
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  color: string; // Tailwind color class prefix (e.g., 'emerald')
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late';
@@ -26,7 +34,7 @@ export interface BehaviorRecord {
   type: BehaviorType;
   description: string;
   points: number;
-  semester?: '1' | '2'; // إضافة الفصل الدراسي
+  semester?: '1' | '2'; 
 }
 
 export interface GradeRecord {
@@ -41,13 +49,13 @@ export interface GradeRecord {
 
 export interface ScheduleDay {
   dayName: string;
-  periods: string[]; // 8 periods
+  periods: string[]; 
 }
 
 export interface PeriodTime {
   periodNumber: number;
-  startTime: string; // "07:15"
-  endTime: string;   // "07:55"
+  startTime: string; 
+  endTime: string;   
 }
 
 export interface AppState {
