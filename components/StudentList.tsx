@@ -215,7 +215,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
 
     let emblemSrc = '';
     try {
-        emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+        emblemSrc = await getBase64Image('oman_logo.png');
         if (!emblemSrc) {
             emblemSrc = await getBase64Image('icon.png');
         }

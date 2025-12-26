@@ -171,8 +171,10 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       
       let emblemSrc = '';
       try {
-           emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+           // استخدام ملف PNG بدلاً من SVG لتفادي مشاكل التحويل في PDF
+           emblemSrc = await getBase64Image('oman_logo.png');
            if (!emblemSrc) {
+              // محاولة احتياطية
               emblemSrc = await getBase64Image('icon.png');
            }
       } catch (e) {
@@ -394,7 +396,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
     
     let emblemSrc = '';
     try {
-        emblemSrc = await getBase64Image('National_emblem_of_Oman.svg');
+        emblemSrc = await getBase64Image('oman_logo.png');
         if (!emblemSrc) {
            emblemSrc = await getBase64Image('icon.png');
         }

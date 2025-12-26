@@ -14,8 +14,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   const [selectedDate, setSelectedDate] = useState(today);
   const [classFilter, setClassFilter] = useState<string>('all');
   
-  // Notification Modal State
-  const [notificationTarget, setNotificationTarget] = useState<Student | null>(null);
+  // Notification Modal State - supports 'absent' and 'late'
+  const [notificationTarget, setNotificationTarget] = useState<{student: Student, type: 'absent' | 'late'} | null>(null);
 
   const formatDateDisplay = (dateString: string) => {
       const d = new Date(dateString);
@@ -66,19 +66,21 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       }));
   };
 
-  const handleNotifyParent = (student: Student) => {
+  const handleNotifyParent = (student: Student, type: 'absent' | 'late') => {
     if (!student.parentPhone) {
       alert('رقم ولي الأمر غير متوفر لهذا الطالب');
       return;
     }
-    setNotificationTarget(student);
+    setNotificationTarget({ student, type });
   };
 
   const performNotification = (method: 'whatsapp' | 'sms') => {
-      if(!notificationTarget || !notificationTarget.parentPhone) return;
+      if(!notificationTarget || !notificationTarget.student.parentPhone) return;
+
+      const { student, type } = notificationTarget;
 
       // تنظيف الرقم وإعداده للصيغة الدولية العمانية
-      let cleanPhone = notificationTarget.parentPhone.replace(/[^0-9]/g, '');
+      let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
 
       // إزالة الصفرين في البداية إذا وجدا
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
@@ -92,7 +94,9 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
           cleanPhone = '968' + cleanPhone.substring(1);
       }
 
-      const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${notificationTarget.name} قد تغيب عن المدرسة اليوم ${formatDateDisplay(selectedDate)}.`);
+      // تحديد نص الرسالة بناءً على نوع الحالة
+      const statusText = type === 'absent' ? 'تغيب عن المدرسة' : 'تأخر في الحضور إلى المدرسة';
+      const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد ${statusText} اليوم ${formatDateDisplay(selectedDate)}.`);
 
       if (method === 'whatsapp') {
           // استخدام api.whatsapp.com و _system لضمان فتح التطبيق الأصلي في جميع البيئات
@@ -217,11 +221,16 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                     </div>
                   </div>
                   
-                  {status === 'absent' && (
+                  {/* زر التبليغ يظهر عند الغياب أو التأخير */}
+                  {(status === 'absent' || status === 'late') && (
                     <button 
-                        onClick={() => handleNotifyParent(student)} 
-                        className="w-8 h-8 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full active:bg-emerald-100 transition-colors hover:bg-emerald-100"
-                        title="إبلاغ ولي الأمر"
+                        onClick={() => handleNotifyParent(student, status)} 
+                        className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors active:scale-95 ${
+                            status === 'absent' 
+                            ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' 
+                            : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        }`}
+                        title={status === 'absent' ? "إبلاغ عن غياب" : "إبلاغ عن تأخير"}
                     >
                         <MessageCircle className="w-4 h-4" />
                     </button>
@@ -269,7 +278,9 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       {notificationTarget && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setNotificationTarget(null)}>
             <div className="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                <h3 className="text-center font-black text-lg mb-2 text-gray-800">تبليغ عن غياب</h3>
+                <h3 className="text-center font-black text-lg mb-2 text-gray-800">
+                    {notificationTarget.type === 'absent' ? 'تبليغ عن غياب' : 'تبليغ عن تأخير'}
+                </h3>
                 <p className="text-center text-xs text-gray-500 font-bold mb-6">اختر طريقة إرسال الرسالة لولي الأمر</p>
                 <div className="grid grid-cols-2 gap-3">
                     <button onClick={() => performNotification('whatsapp')} className="flex flex-col items-center justify-center gap-2 p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all">
