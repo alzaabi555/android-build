@@ -65,24 +65,32 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   const performNotification = (method: 'whatsapp' | 'sms') => {
       if(!notificationTarget || !notificationTarget.student.parentPhone) return;
       const { student, type } = notificationTarget;
+      
+      // تنظيف دقيق للرقم: إبقاء الأرقام فقط
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
+      
+      // معالجة الصيغ الدولية والمحلية
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+      
+      // إذا كان الرقم 8 خانات (عماني)، نضيف المفتاح 968
       if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
-      else if (cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
+      // إذا كان يبدأ بـ 0 (مثل 050..)، نحذف الصفر ونضيف المفتاح (افتراض عماني، يمكن تعديله)
+      else if (cleanPhone.startsWith('0') && cleanPhone.length === 9) cleanPhone = '968' + cleanPhone.substring(1);
 
       const statusText = type === 'absent' ? 'تغيب عن المدرسة' : 'تأخر في الحضور إلى المدرسة';
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد ${statusText} اليوم ${new Date(selectedDate).toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
           if (Capacitor.isNativePlatform()) {
-              // استخدام البروتوكول المباشر للأندرويد والآيفون لتجنب مشاكل المتصفح
-              window.open(`whatsapp://send?phone=${cleanPhone}&text=${msg}`, '_system');
+              // استخدام window.location.href مع البروتوكول المباشر هو الطريقة الأكثر موثوقية للأندرويد
+              // هذا يجبر النظام على البحث عن التطبيق المثبت فوراً
+              window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
           } else {
-              // للويب
-              window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
+              // للويب نستخدم الرابط العادي
+              window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
           }
       } else {
-          if (Capacitor.isNativePlatform()) window.open(`sms:${cleanPhone}?&body=${msg}`, '_system');
+          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?&body=${msg}`;
           else window.open(`sms:${cleanPhone}?&body=${msg}`, '_self');
       }
       setNotificationTarget(null);
@@ -102,27 +110,28 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
 
   const IOSSegmentedControl = ({ status, onChange }: { status?: AttendanceStatus, onChange: (s: AttendanceStatus) => void }) => {
       return (
-          <div className="bg-[#767680]/15 p-0.5 rounded-xl flex h-10 w-full max-w-[240px] relative isolate">
+          // Increased height from h-10 to h-14 for better visibility
+          <div className="bg-[#767680]/15 p-1 rounded-2xl flex h-14 w-full max-w-[280px] relative isolate">
               {/* Animated Background for Active State */}
-              <div className={`absolute top-0.5 bottom-0.5 w-[calc(33.33%-2px)] bg-white rounded-[9px] shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[-1] ${
-                  status === 'present' ? 'right-0.5' : 
+              <div className={`absolute top-1 bottom-1 w-[calc(33.33%-2px)] bg-white rounded-[12px] shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[-1] ${
+                  status === 'present' ? 'right-1' : 
                   status === 'absent' ? 'right-1/2 translate-x-1/2' : 
-                  status === 'late' ? 'left-0.5' : 'hidden'
+                  status === 'late' ? 'left-1' : 'hidden'
               }`}></div>
 
-              <button onClick={() => onChange('present')} className={`flex-1 flex items-center justify-center gap-1 rounded-[9px] text-xs font-bold transition-colors ${status === 'present' ? 'text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {status === 'present' && <Check className="w-4 h-4" strokeWidth={2.5} />}
-                  <span>حاضر</span>
+              <button onClick={() => onChange('present')} className={`flex-1 flex flex-col items-center justify-center rounded-[12px] transition-colors ${status === 'present' ? 'text-green-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {status === 'present' && <Check className="w-5 h-5 mb-0.5" strokeWidth={3} />}
+                  <span className="text-xs font-black">حاضر</span>
               </button>
-              <div className={`w-px bg-gray-300/50 my-2 ${status === 'present' || status === 'absent' ? 'opacity-0' : ''}`}></div>
-              <button onClick={() => onChange('absent')} className={`flex-1 flex items-center justify-center gap-1 rounded-[9px] text-xs font-bold transition-colors ${status === 'absent' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {status === 'absent' && <X className="w-4 h-4" strokeWidth={2.5} />}
-                  <span>غائب</span>
+              <div className={`w-px bg-gray-300/50 my-3 ${status === 'present' || status === 'absent' ? 'opacity-0' : ''}`}></div>
+              <button onClick={() => onChange('absent')} className={`flex-1 flex flex-col items-center justify-center rounded-[12px] transition-colors ${status === 'absent' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {status === 'absent' && <X className="w-5 h-5 mb-0.5" strokeWidth={3} />}
+                  <span className="text-xs font-black">غائب</span>
               </button>
-              <div className={`w-px bg-gray-300/50 my-2 ${status === 'absent' || status === 'late' ? 'opacity-0' : ''}`}></div>
-              <button onClick={() => onChange('late')} className={`flex-1 flex items-center justify-center gap-1 rounded-[9px] text-xs font-bold transition-colors ${status === 'late' ? 'text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {status === 'late' && <Clock className="w-4 h-4" strokeWidth={2.5} />}
-                  <span>تأخير</span>
+              <div className={`w-px bg-gray-300/50 my-3 ${status === 'absent' || status === 'late' ? 'opacity-0' : ''}`}></div>
+              <button onClick={() => onChange('late')} className={`flex-1 flex flex-col items-center justify-center rounded-[12px] transition-colors ${status === 'late' ? 'text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {status === 'late' && <Clock className="w-5 h-5 mb-0.5" strokeWidth={3} />}
+                  <span className="text-xs font-black">تأخير</span>
               </button>
           </div>
       );
@@ -144,7 +153,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                     <select 
                         value={classFilter} 
                         onChange={(e) => setClassFilter(e.target.value)} 
-                        className="appearance-none bg-white/80 backdrop-blur text-blue-600 font-bold text-xs py-1.5 pl-3 pr-8 rounded-full border-none shadow-sm focus:ring-0 cursor-pointer"
+                        className="appearance-none bg-white/80 backdrop-blur text-blue-600 font-bold text-xs py-2 pl-3 pr-8 rounded-full border-none shadow-sm focus:ring-0 cursor-pointer"
                     >
                         <option value="all">كل الفصول</option>
                         {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -159,7 +168,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                         onChange={(e) => setSelectedDate(e.target.value)} 
                         className="absolute inset-0 opacity-0 z-10 w-full cursor-pointer"
                     />
-                    <button className="bg-white/80 backdrop-blur text-blue-600 font-bold text-xs py-1.5 px-3 rounded-full shadow-sm flex items-center gap-1">
+                    <button className="bg-white/80 backdrop-blur text-blue-600 font-bold text-xs py-2 px-3 rounded-full shadow-sm flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
                         <span>التاريخ</span>
                     </button>
@@ -174,7 +183,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
               </div>
               <input
                   type="text"
-                  className="w-full bg-[#767680]/12 text-gray-900 text-sm rounded-xl py-2 pr-9 pl-4 outline-none placeholder:text-gray-500 focus:bg-[#767680]/20 transition-colors text-right"
+                  className="w-full bg-[#767680]/12 text-gray-900 text-sm rounded-xl py-2.5 pr-9 pl-4 outline-none placeholder:text-gray-500 focus:bg-[#767680]/20 transition-colors text-right"
                   placeholder="بحث"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -185,13 +194,13 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
           <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
               <button 
                   onClick={() => handleMarkAll('present')}
-                  className="flex-1 bg-white text-blue-600 py-2 rounded-xl text-[11px] font-bold shadow-sm active:opacity-70 transition-opacity border border-gray-100"
+                  className="flex-1 bg-white text-blue-600 py-2.5 rounded-xl text-[11px] font-bold shadow-sm active:opacity-70 transition-opacity border border-gray-100"
               >
                   تحديد الكل "حاضر"
               </button>
               <button 
                   onClick={() => handleMarkAll('reset')}
-                  className="px-4 bg-white text-gray-400 py-2 rounded-xl shadow-sm active:opacity-70 transition-opacity border border-gray-100"
+                  className="px-4 bg-white text-gray-400 py-2.5 rounded-xl shadow-sm active:opacity-70 transition-opacity border border-gray-100"
               >
                   <RotateCcw className="w-4 h-4" />
               </button>
@@ -201,14 +210,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       {/* Student List - iOS TableView Style */}
       <div className="px-4 mt-2">
           {filteredStudents.length > 0 ? (
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200/50">
+              <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200/50">
                   {filteredStudents.map((student, index) => {
                     const status = getStatus(student);
                     return (
-                        <div key={student.id} className={`flex items-center justify-between p-4 ${index !== filteredStudents.length - 1 ? 'border-b border-gray-100' : ''} active:bg-gray-50 transition-colors`}>
+                        <div key={student.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-3 ${index !== filteredStudents.length - 1 ? 'border-b border-gray-100' : ''} active:bg-gray-50 transition-colors`}>
                             
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm ${
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 shadow-sm ${
                                     status === 'present' ? 'bg-green-500' : 
                                     status === 'absent' ? 'bg-red-500' : 
                                     status === 'late' ? 'bg-amber-500' : 
@@ -217,20 +226,20 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                                     {student.name.charAt(0)}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <h4 className="text-sm font-black text-gray-900 truncate text-right">{student.name}</h4>
-                                    <p className="text-[11px] text-gray-400 truncate text-right font-bold">{student.classes[0]}</p>
+                                    <h4 className="text-base font-black text-gray-900 truncate text-right">{student.name}</h4>
+                                    <p className="text-xs text-gray-400 truncate text-right font-bold">{student.classes[0]}</p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
                                 <IOSSegmentedControl status={status} onChange={(s) => toggleAttendance(student.id, s)} />
                                 
                                 {(status === 'absent' || status === 'late') && (
                                     <button 
                                         onClick={() => handleNotifyParent(student, status)} 
-                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 active:scale-90 transition-transform shadow-sm"
+                                        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-blue-50 text-blue-600 active:scale-90 transition-transform shadow-sm border border-blue-100"
                                     >
-                                        <MessageCircle className="w-5 h-5" />
+                                        <MessageCircle className="w-6 h-6" />
                                     </button>
                                 )}
                             </div>
@@ -250,8 +259,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       {/* Notification Modal - CENTERED */}
       {notificationTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setNotificationTarget(null)}>
-            <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[20px] p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden" onClick={e => e.stopPropagation()}>
-                <h3 className="text-center font-black text-gray-900 text-base mb-1">
+            <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[24px] p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                <h3 className="text-center font-black text-gray-900 text-lg mb-1">
                     إبلاغ ولي الأمر
                 </h3>
                 <p className="text-center text-xs font-bold text-gray-500 mb-6">
@@ -259,17 +268,17 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                 </p>
                 
                 <div className="space-y-3">
-                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-green-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
-                        <MessageCircle className="w-5 h-5" />
-                        إرسال عبر واتساب
+                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-[#25D366] hover:bg-[#128C7E] active:bg-[#075E54] text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-green-200 transition-all">
+                        <MessageCircle className="w-6 h-6 fill-white" />
+                        فتح واتساب مباشرة
                     </button>
-                    <button onClick={() => performNotification('sms')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-blue-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => performNotification('sms')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-blue-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm border border-gray-100">
                         <CheckCircle2 className="w-5 h-5" />
                         رسالة نصية SMS
                     </button>
                 </div>
                 
-                <button onClick={() => setNotificationTarget(null)} className="w-full mt-3 bg-white active:bg-gray-50 py-3.5 rounded-xl text-red-500 font-bold text-sm shadow-sm">
+                <button onClick={() => setNotificationTarget(null)} className="w-full mt-3 bg-transparent py-3 rounded-xl text-red-500 font-bold text-sm">
                     إلغاء
                 </button>
             </div>

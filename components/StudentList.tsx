@@ -101,6 +101,8 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
   const performNotification = (method: 'whatsapp' | 'sms') => {
       if(!notificationTarget || !notificationTarget.student.parentPhone) return;
       const { student } = notificationTarget;
+      
+      // تنظيف الرقم بشكل صارم
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
@@ -110,12 +112,13 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
 
       if (method === 'whatsapp') {
           if (Capacitor.isNativePlatform()) {
-              window.open(`whatsapp://send?phone=${cleanPhone}&text=${msg}`, '_system');
+              // استخدام البروتوكول المباشر للأندرويد
+              window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
           } else {
-              window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
+              window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
           }
       } else {
-          if (Capacitor.isNativePlatform()) window.open(`sms:${cleanPhone}?&body=${msg}`, '_system');
+          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?&body=${msg}`;
           else window.open(`sms:${cleanPhone}?&body=${msg}`, '_self');
       }
       setNotificationTarget(null);
@@ -340,20 +343,20 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                       </div>
                   </div>
 
-                  {/* Quick Actions */}
+                  {/* Quick Actions (Increased sizes for Positive/Negative) */}
                   <div className="flex items-center gap-2 border-r border-gray-100 pr-2">
                       <button 
                         onClick={() => setShowPositiveReasons({student})}
-                        className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center active:bg-emerald-600 active:text-white transition-colors border border-emerald-100/50"
+                        className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center active:bg-emerald-600 active:text-white transition-colors border border-emerald-100/50 shadow-sm hover:scale-105"
                       >
-                          <ThumbsUp className="w-5 h-5" strokeWidth={2.5} />
+                          <ThumbsUp className="w-6 h-6" strokeWidth={2.5} />
                       </button>
                       
                       <button 
                         onClick={() => setShowNegativeReasons({student})}
-                        className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center active:bg-rose-600 active:text-white transition-colors border border-rose-100/50"
+                        className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center active:bg-rose-600 active:text-white transition-colors border border-rose-100/50 shadow-sm hover:scale-105"
                       >
-                          <ThumbsDown className="w-5 h-5" strokeWidth={2.5} />
+                          <ThumbsDown className="w-6 h-6" strokeWidth={2.5} />
                       </button>
 
                       <button 
@@ -673,8 +676,8 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       {/* 7. Notification Modal for Truancy */}
       {notificationTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setNotificationTarget(null)}>
-            <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[20px] p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden" onClick={e => e.stopPropagation()}>
-                <h3 className="text-center font-black text-gray-900 text-base mb-1">
+            <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[24px] p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                <h3 className="text-center font-black text-gray-900 text-lg mb-1">
                     إبلاغ ولي الأمر
                 </h3>
                 <p className="text-center text-xs font-bold text-rose-500 mb-6">
@@ -682,17 +685,17 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                 </p>
                 
                 <div className="space-y-3">
-                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-green-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
-                        <MessageCircle className="w-5 h-5" />
-                        إرسال عبر واتساب
+                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-[#25D366] hover:bg-[#128C7E] active:bg-[#075E54] text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-green-200 transition-all">
+                        <MessageCircle className="w-6 h-6 fill-white" />
+                        فتح واتساب مباشرة
                     </button>
-                    <button onClick={() => performNotification('sms')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-blue-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => performNotification('sms')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-blue-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm border border-gray-100">
                         <CheckCircle2 className="w-5 h-5" />
                         رسالة نصية SMS
                     </button>
                 </div>
                 
-                <button onClick={() => setNotificationTarget(null)} className="w-full mt-3 bg-white active:bg-gray-50 py-3.5 rounded-xl text-gray-500 font-bold text-sm shadow-sm">
+                <button onClick={() => setNotificationTarget(null)} className="w-full mt-3 bg-transparent py-3 rounded-xl text-gray-500 font-bold text-sm">
                     إغلاق
                 </button>
             </div>
