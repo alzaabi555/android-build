@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, useRef, Component } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { Student, ScheduleDay, PeriodTime, Group } from './types';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
@@ -50,7 +50,7 @@ interface ErrorBoundaryState {
   errorMsg: string;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     errorMsg: ''
