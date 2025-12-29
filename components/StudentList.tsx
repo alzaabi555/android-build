@@ -99,10 +99,18 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
   };
 
   const performNotification = (method: 'whatsapp' | 'sms') => {
-      if(!notificationTarget || !notificationTarget.student.parentPhone) return;
+      if(!notificationTarget || !notificationTarget.student.parentPhone) {
+          alert('لا يوجد رقم هاتف مسجل');
+          return;
+      }
       const { student } = notificationTarget;
       
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
+      if (!cleanPhone || cleanPhone.length < 5) {
+          alert('رقم الهاتف غير صحيح');
+          return;
+      }
+
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
       else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
@@ -110,15 +118,12 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد تسرب من الحصة اليوم ${new Date().toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
-          const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
-          if (Capacitor.isNativePlatform()) {
-              window.location.href = whatsappUrl;
-          } else {
-              window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
-          }
+          // استخدام HTTPS API لتجنب أخطاء البروتوكول في الويب فيو
+          const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+          window.open(url, '_system');
       } else {
-          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?body=${msg}`;
-          else window.location.href = `sms:${cleanPhone}?body=${msg}`;
+          const url = `sms:${cleanPhone}?body=${msg}`;
+          window.open(url, '_system');
       }
       setNotificationTarget(null);
   };

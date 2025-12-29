@@ -63,17 +63,25 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   };
 
   const performNotification = (method: 'whatsapp' | 'sms') => {
-      if(!notificationTarget || !notificationTarget.student.parentPhone) return;
+      if(!notificationTarget || !notificationTarget.student.parentPhone) {
+          alert('لا يوجد رقم هاتف مسجل');
+          return;
+      }
       const { student, type } = notificationTarget;
       
-      // 1. تنظيف الرقم (إزالة أي شيء ليس رقماً)
+      // تنظيف الرقم
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       
-      // 2. معالجة البادئات
-      // إزالة 00 في البداية
+      // التحقق من صحة الرقم قبل المتابعة
+      if (!cleanPhone || cleanPhone.length < 5) {
+          alert('رقم الهاتف غير صحيح أو قصير جداً');
+          return;
+      }
+      
+      // معالجة الصيغ الدولية
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       
-      // معالجة الأرقام المحلية (مثال عمان: 8 خانات، أو 9 تبدأ بـ0)
+      // إضافة المفتاح الدولي (عمان) إذا لزم الأمر
       if (cleanPhone.length === 8) {
           cleanPhone = '968' + cleanPhone;
       } else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) {
@@ -84,24 +92,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد ${statusText} اليوم ${new Date(selectedDate).toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
-          // استخدام البروتوكول المباشر هو الحل الأضمن للأندرويد لفتح التطبيق
-          const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
-          
-          if (Capacitor.isNativePlatform()) {
-              // window.location.href يقوم بتوجيه النظام للتعامل مع الرابط مباشرة (Intent)
-              window.location.href = whatsappUrl;
-          } else {
-              // للويب
-              window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
-          }
+          // استخدام رابط HTTPS الرسمي لتجنب خطأ ERR_UNKNOWN_URL_SCHEME
+          // استخدام _system يجبر التطبيق على فتح المتصفح الخارجي أو تطبيق الواتساب مباشرة
+          const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+          window.open(url, '_system');
       } else {
           // SMS
-          const smsUrl = `sms:${cleanPhone}?body=${msg}`;
-          if (Capacitor.isNativePlatform()) {
-              window.location.href = smsUrl;
-          } else {
-              window.location.href = smsUrl;
-          }
+          const url = `sms:${cleanPhone}?body=${msg}`;
+          window.open(url, '_system');
       }
       setNotificationTarget(null);
   };
