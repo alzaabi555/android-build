@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>محول أيقونة راصد</title>
+    <style>
+        body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0; }
+        .preview { margin-bottom: 30px; filter: drop-shadow(0 20px 30px rgba(79, 70, 229, 0.2)); transition: transform 0.3s; }
+        .preview:hover { transform: scale(1.05); }
+        button { padding: 18px 40px; font-size: 18px; font-weight: 800; color: white; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border: none; border-radius: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3); display: flex; align-items: center; gap: 10px; }
+        button:hover { transform: translateY(-3px); box-shadow: 0 15px 25px rgba(79, 70, 229, 0.4); }
+        button:active { transform: translateY(0); }
+        p { color: #64748b; margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1 style="color: #1e293b; margin-bottom: 40px;">أيقونة راصد الجديدة (2025)</h1>
+    
+    <div class="preview" id="svg-container">
+        <!-- SVG Code From Design -->
+        <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" id="rased-icon">
+          <defs>
+            <linearGradient id="bg_glass" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a6e4ff" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#2a9d8f" stop-opacity="0.6"/>
+            </linearGradient>
+            
+            <linearGradient id="arrow_grad" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444" />
+              <stop offset="50%" stop-color="#f97316" />
+              <stop offset="100%" stop-color="#fbbf24" />
+            </linearGradient>
+
+            <linearGradient id="eye_grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#60a5fa" />
+              <stop offset="100%" stop-color="#1d4ed8" />
+            </linearGradient>
+
+            <linearGradient id="book_grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#4ade80" />
+                <stop offset="100%" stop-color="#15803d" />
+            </linearGradient>
+
+            <filter id="dropShadow" x="-40%" y="-40%" width="180%" height="180%">
+              <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.2"/>
+            </filter>
+          </defs>
+
+          <!-- 1. Outer Glass Container -->
+          <rect x="30" y="30" width="452" height="452" rx="90" fill="url(#bg_glass)" stroke="white" stroke-width="6" stroke-opacity="0.6" />
+          <rect x="40" y="40" width="432" height="432" rx="80" fill="none" stroke="white" stroke-width="2" stroke-opacity="0.3" />
+
+          <!-- 2. Inner White Circle Platform -->
+          <circle cx="256" cy="256" r="190" fill="white" fill-opacity="0.95" filter="url(#dropShadow)" />
+          <circle cx="256" cy="256" r="180" fill="none" stroke="#e2e8f0" stroke-width="2" />
+
+          <!-- 3. The Eye (Center) -->
+          <g transform="translate(131, 156) scale(1)">
+              <path d="M0 100 Q 125 -20 250 100 Q 125 220 0 100 Z" fill="#f0f9ff" stroke="#0ea5e9" stroke-width="10" stroke-linejoin="round" />
+              <circle cx="125" cy="100" r="50" fill="url(#eye_grad)" />
+              <circle cx="125" cy="100" r="22" fill="#0f172a" />
+              <circle cx="145" cy="85" r="12" fill="white" opacity="0.8" />
+          </g>
+
+          <!-- 4. The Book (Bottom) -->
+          <g transform="translate(140, 310) scale(0.9)">
+             <path d="M5 50 Q 80 80 155 50 L 155 70 Q 80 100 5 70 Z" fill="url(#book_grad)" filter="url(#dropShadow)" />
+             <path d="M155 50 Q 230 80 305 50 L 305 70 Q 230 100 155 70 Z" fill="url(#book_grad)" filter="url(#dropShadow)" />
+             <path d="M15 40 Q 85 70 145 40" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round" />
+             <path d="M165 40 Q 225 70 295 40" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round" />
+             <path d="M20 25 Q 85 55 145 25" fill="none" stroke="#86efac" stroke-width="5" stroke-linecap="round" />
+             <path d="M165 25 Q 225 55 290 25" fill="none" stroke="#86efac" stroke-width="5" stroke-linecap="round" />
+             <path d="M155 50 L 155 70" stroke="#14532d" stroke-width="2" />
+          </g>
+
+          <!-- 5. Chart Arrow (Overlay) -->
+          <path d="M180 300 L 230 250 L 270 290 L 350 170" fill="none" stroke="url(#arrow_grad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" filter="url(#dropShadow)" />
+          <path d="M310 170 L 350 170 L 350 215" fill="none" stroke="url(#arrow_grad)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+
+          <!-- 6. Top Icons Badges -->
+          <g transform="translate(190, 160)">
+              <circle cx="0" cy="0" r="18" fill="#22c55e" filter="url(#dropShadow)" />
+              <path d="M-8 0 L -3 5 L 8 -6" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+          </g>
+
+          <g transform="translate(256, 140)">
+              <circle cx="0" cy="0" r="18" fill="#fbbf24" filter="url(#dropShadow)" />
+              <circle cx="-5" cy="-3" r="2" fill="#78350f" />
+              <circle cx="5" cy="-3" r="2" fill="#78350f" />
+              <path d="M-6 5 Q 0 10 6 5" fill="none" stroke="#78350f" stroke-width="2" stroke-linecap="round" />
+          </g>
+
+          <g transform="translate(322, 160)">
+              <text x="0" y="8" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="28" fill="#ef4444" filter="url(#dropShadow)">A+</text>
+          </g>
+        </svg>
+    </div>
+    
+    <button onclick="downloadPNG()">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        تحميل الأيقونة (PNG)
+    </button>
+    <p>بعد التحميل، استبدل ملف <code>icon.png</code> الحالي بهذا الملف.</p>
+
+    <script>
+        function downloadPNG() {
+            const svg = document.getElementById('rased-icon');
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            const data = (new XMLSerializer()).serializeToString(svg);
+            const DOMURL = window.URL || window.webkitURL || window;
+            
+            const img = new Image();
+            const svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+            const url = DOMURL.createObjectURL(svgBlob);
+            
+            img.onload = function () {
+                ctx.clearRect(0, 0, 512, 512);
+                ctx.drawImage(img, 0, 0);
+                DOMURL.revokeObjectURL(url);
+                
+                const imgURI = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
+                
+                const evt = new MouseEvent('click', {
+                    view: window,
+                    bubbles: false,
+                    cancelable: true
+                });
+                
+                const a = document.createElement('a');
+                a.setAttribute('download', 'icon.png');
+                a.setAttribute('href', imgURI);
+                a.setAttribute('target', '_blank');
+                
+                a.dispatchEvent(evt);
+            };
+            
+            img.src = url;
+        }
+    </script>
+</body>
+</html>
