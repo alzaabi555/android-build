@@ -1,25 +1,17 @@
 import React from 'react';
 import { ExternalLink, Globe, Lock, ShieldCheck, ChevronRight, Smartphone } from 'lucide-react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 const NoorPlatform: React.FC = () => {
   const url = "https://lms.moe.gov.om/student/users/login";
 
-  const handleOpenPlatform = () => {
-    // @ts-ignore
-    const cordova = window.cordova;
-
-    if (!cordova || !cordova.InAppBrowser) {
-        // Fallback for browser testing
+  const handleOpenPlatform = async () => {
+    if (Capacitor.isNativePlatform()) {
+        await Browser.open({ url: url, presentationStyle: 'fullscreen' });
+    } else {
         window.open(url, '_blank');
-        return;
     }
-
-    // إعدادات المتصفح:
-    const options = 'location=yes,toolbar=yes,closebuttoncaption=إغلاق,hidenavigationbuttons=no,toolbarposition=bottom,presentationstyle=fullscreen,hardwareback=yes';
-    const target = '_blank';
-
-    // فتح المتصفح باستخدام الواجهة الأصلية
-    cordova.InAppBrowser.open(url, target, options);
   };
 
   return (
@@ -59,7 +51,7 @@ const NoorPlatform: React.FC = () => {
                <p className="text-[9px] font-bold text-amber-800 leading-relaxed text-right">
                   سيتم فتح المنصة في نافذة مخصصة. 
                   <br/>
-                  للعودة للتطبيق، استخدم زر <strong>"إغلاق"</strong> أو <strong>"X"</strong>.
+                  للعودة للتطبيق، استخدم زر <strong>"Done"</strong> أو <strong>"إغلاق"</strong>.
                </p>
             </div>
          </div>

@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Student, ScheduleDay, PeriodTime } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Check, CalendarCheck, ChevronLeft, Settings, Clock, ArrowRight, FileSpreadsheet, Loader2, Upload, BookOpen } from 'lucide-react';
+import { Users, Award, AlertCircle, Sun, Moon, Coffee, Sparkles, School, Calendar, Edit2, X, Clock, ArrowRight, FileSpreadsheet, Loader2, BookOpen, Settings, ChevronLeft, CalendarCheck, BellRing } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface DashboardProps {
@@ -17,19 +18,7 @@ interface DashboardProps {
   setPeriodTimes: React.Dispatch<React.SetStateAction<PeriodTime[]>>;
 }
 
-const OMAN_GOVERNORATES = [
-  "مسقط",
-  "ظفار",
-  "مسندم",
-  "البريمي",
-  "الداخلية",
-  "شمال الباطنة",
-  "جنوب الباطنة",
-  "جنوب الشرقية",
-  "شمال الشرقية",
-  "الظاهرة",
-  "الوسطى"
-];
+const OMAN_GOVERNORATES = ["مسقط", "ظفار", "مسندم", "البريمي", "الداخلية", "شمال الباطنة", "جنوب الباطنة", "جنوب الشرقية", "شمال الشرقية", "الظاهرة", "الوسطى"];
 
 const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpdateTeacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings, periodTimes, setPeriodTimes }) => {
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
@@ -38,19 +27,16 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const [isImportingSchedule, setIsImportingSchedule] = useState(false);
   
-  // State for editing teacher info
   const [editName, setEditName] = useState(teacherInfo.name);
   const [editSchool, setEditSchool] = useState(teacherInfo.school);
   const [editSubject, setEditSubject] = useState(teacherInfo.subject);
   const [editGovernorate, setEditGovernorate] = useState(teacherInfo.governorate);
 
-  const totalStudents = students?.length || 0;
   const hour = new Date().getHours();
-  
   const getGreetingData = () => {
-    if (hour < 12) return { text: "صباح الخير", icon: Sun, color: "text-amber-400" };
-    if (hour < 17) return { text: "طاب يومك", icon: Coffee, color: "text-orange-400" };
-    return { text: "مساء الخير", icon: Moon, color: "text-indigo-400" };
+    if (hour < 12) return { text: "صباح الخير", icon: Sun, color: "text-amber-200" };
+    if (hour < 17) return { text: "طاب يومك", icon: Coffee, color: "text-orange-200" };
+    return { text: "مساء الخير", icon: Moon, color: "text-indigo-200" };
   };
 
   const greeting = getGreetingData();
@@ -102,12 +88,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
   };
 
   const handleSaveInfo = () => {
-      onUpdateTeacherInfo({
-          name: editName,
-          school: editSchool,
-          subject: editSubject,
-          governorate: editGovernorate
-      });
+      onUpdateTeacherInfo({ name: editName, school: editSchool, subject: editSubject, governorate: editGovernorate });
       setIsEditingInfo(false);
   };
 
@@ -120,369 +101,277 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
   };
 
   const handleImportSchedule = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsImportingSchedule(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
-      
-      const targetDays = [
-        { key: 'أحد', full: 'الأحد' },
-        { key: 'اثنين', full: 'الاثنين' },
-        { key: 'ثلاثاء', full: 'الثلاثاء' },
-        { key: 'أربعاء', full: 'الأربعاء' },
-        { key: 'خميس', full: 'الخميس' }
-      ];
-
-      const newSchedule = [...schedule];
-      let foundData = false;
-
-      jsonData.forEach((row) => {
-         const dayIndexInRow = row.findIndex(cell => {
-             if (typeof cell !== 'string') return false;
-             return targetDays.some(d => cell.includes(d.key));
-         });
-
-         if (dayIndexInRow !== -1) {
-             const cellText = String(row[dayIndexInRow]).trim();
-             const matchedDayObj = targetDays.find(d => cellText.includes(d.key));
-
-             if (matchedDayObj) {
-                 const scheduleDayIndex = newSchedule.findIndex(s => s.dayName === matchedDayObj.full);
-                 
-                 if (scheduleDayIndex !== -1) {
-                     const newPeriods = [];
-                     for (let i = 1; i <= 8; i++) {
-                         const val = row[dayIndexInRow + i];
-                         newPeriods.push(val ? String(val).trim() : '');
-                     }
-                     
-                     newSchedule[scheduleDayIndex] = { 
-                         ...newSchedule[scheduleDayIndex], 
-                         periods: newPeriods 
-                     };
-                     foundData = true;
-                 }
-             }
-         }
-      });
-
-      if (foundData) {
-          onUpdateSchedule(newSchedule);
-          alert('تم استيراد الجدول بنجاح! تم توزيع 8 حصص لكل يوم.');
-      } else {
-          alert('لم يتم العثور على أيام الأسبوع في الملف. تأكد من وجود أسماء الأيام (الأحد..الخميس) في خلايا منفصلة.');
-      }
-
-    } catch (error) {
-        console.error(error);
-        alert('حدث خطأ أثناء قراءة الملف. تأكد من صيغة الملف.');
-    } finally {
-        setIsImportingSchedule(false);
-        if (e.target) e.target.value = '';
-    }
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setIsImportingSchedule(true);
+      try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+        const targetDays = [ { key: 'أحد', full: 'الأحد' }, { key: 'اثنين', full: 'الاثنين' }, { key: 'ثلاثاء', full: 'الثلاثاء' }, { key: 'أربعاء', full: 'الأربعاء' }, { key: 'خميس', full: 'الخميس' } ];
+        const newSchedule = [...schedule];
+        let foundData = false;
+        jsonData.forEach((row) => {
+           const dayIndexInRow = row.findIndex(cell => { if (typeof cell !== 'string') return false; return targetDays.some(d => cell.includes(d.key)); });
+           if (dayIndexInRow !== -1) {
+               const cellText = String(row[dayIndexInRow]).trim();
+               const matchedDayObj = targetDays.find(d => cellText.includes(d.key));
+               if (matchedDayObj) {
+                   const scheduleDayIndex = newSchedule.findIndex(s => s.dayName === matchedDayObj.full);
+                   if (scheduleDayIndex !== -1) {
+                       const newPeriods = [];
+                       for (let i = 1; i <= 8; i++) { const val = row[dayIndexInRow + i]; newPeriods.push(val ? String(val).trim() : ''); }
+                       newSchedule[scheduleDayIndex] = { ...newSchedule[scheduleDayIndex], periods: newPeriods };
+                       foundData = true;
+                   }
+               }
+           }
+        });
+        if (foundData) { onUpdateSchedule(newSchedule); alert('تم استيراد الجدول بنجاح!'); } 
+        else { alert('لم يتم العثور على أيام الأسبوع.'); }
+      } catch (error) { alert('خطأ في قراءة الملف'); } finally { setIsImportingSchedule(false); if (e.target) e.target.value = ''; }
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 pb-24 md:pb-8">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-l from-blue-600 to-indigo-600 rounded-2xl p-5 md:p-8 text-white shadow-lg relative overflow-hidden flex justify-between items-center group">
-        <div className="relative z-10 flex-1">
-          <div className="flex items-center gap-2 mb-1 opacity-90">
-            <GreetingIcon className={`${greeting.color} w-4 h-4 md:w-5 md:h-5`} />
-            <span className="text-[10px] md:text-xs font-black">{greeting.text}</span>
+    <div className="space-y-2 pb-24 md:pb-8">
+      
+      {/* 1. Compact Welcome Banner */}
+      <div className="relative overflow-hidden rounded-[1.5rem] bg-[#4f46e5] text-white shadow-lg shadow-indigo-500/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 opacity-100"></div>
+        {/* Abstract shapes hidden on mobile for cleaner look */}
+        <div className="hidden md:block absolute top-[-50%] right-[-20%] w-[500px] h-[500px] bg-white/10 rounded-full blur-[100px]"></div>
+
+        <div className="relative z-10 px-5 py-4 flex flex-row justify-between items-center">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-0.5">
+              <GreetingIcon className={`${greeting.color} w-3.5 h-3.5`} strokeWidth={2.5} />
+              <span className="text-[9px] font-bold tracking-wider uppercase opacity-80">{greeting.text}</span>
+            </div>
+            <div className="flex items-center gap-2">
+               <h2 className="text-lg font-black tracking-tight">أ. {teacherInfo?.name || 'المعلم'}</h2>
+               <button onClick={openInfoEditor} className="w-5 h-5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                   <Edit2 className="w-2.5 h-2.5 text-white" strokeWidth={2.5} />
+               </button>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+               <span className="text-[9px] opacity-70 font-bold">{teacherInfo?.school || 'المدرسة'}</span>
+               {teacherInfo?.subject && <span className="text-[9px] opacity-60">• {teacherInfo.subject}</span>}
+            </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg md:text-2xl font-black truncate max-w-[200px] md:max-w-md">أهلاً بك، أ. {teacherInfo?.name || 'المعلم'}</h2>
-            <button onClick={openInfoEditor} className="p-1 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><Edit2 className="w-3 h-3 text-white/80"/></button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 mt-1 opacity-80">
-            <div className="flex items-center gap-1.5">
-                <School className="w-3 h-3 md:w-4 md:h-4" />
-                <p className="text-[10px] md:text-xs font-black truncate max-w-[150px]">{teacherInfo?.school || 'اسم المدرسة'}</p>
-            </div>
-            {teacherInfo?.subject && (
-                <div className="flex items-center gap-1.5 bg-white/10 px-2 py-0.5 rounded-full">
-                    <BookOpen className="w-3 h-3" />
-                    <p className="text-[9px] md:text-[10px] font-black">{teacherInfo.subject}</p>
-                </div>
-            )}
-          </div>
+          <button 
+              onClick={onOpenSettings} 
+              className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 backdrop-blur-md border border-white/10 active:scale-95"
+          >
+              <Settings className="w-4.5 h-4.5 text-white" strokeWidth={2} />
+          </button>
         </div>
-        
-        <button 
-            onClick={onOpenSettings} 
-            className="md:hidden relative z-10 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 active:scale-95 transition-all border border-white/10 shadow-sm"
-        >
-            <Settings className="w-5 h-5 text-white" />
-        </button>
-
-        <Sparkles className="absolute -left-2 -bottom-2 w-16 h-16 md:w-32 md:h-32 opacity-10 rotate-12" />
       </div>
 
-      {/* Quick Actions */}
-      <button onClick={() => onNavigate('attendance')} className="w-full bg-white text-blue-900 p-4 md:p-6 rounded-2xl shadow-sm border border-blue-50 flex items-center justify-between group active:scale-95 transition-all">
-            <div className="flex items-center gap-3">
-                <div className="bg-blue-50 p-2.5 md:p-3.5 rounded-xl">
-                    <CalendarCheck className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+      {/* 2. Slim Action Button */}
+      <button onClick={() => onNavigate('attendance')} className="w-full bg-white rounded-2xl p-1 shadow-sm border border-indigo-100 active:scale-[0.98] transition-all">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                        <CalendarCheck className="w-4 h-4" strokeWidth={2.5} />
+                    </div>
+                    <span className="font-black text-xs text-slate-800">تسجيل الحضور اليومي</span>
                 </div>
-                <div className="text-right">
-                    <h3 className="font-black text-base md:text-lg text-gray-900">تسجيل الحضور</h3>
-                    <p className="text-gray-400 text-[10px] md:text-xs font-bold">اضغط هنا لبدء رصد الغياب لهذا اليوم</p>
+                <div className="bg-white px-3 py-1 rounded-lg text-[9px] font-black text-indigo-600 shadow-sm">
+                    ابدأ الآن <ChevronLeft className="w-2.5 h-2.5 inline" />
                 </div>
-            </div>
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black group-hover:scale-110 transition-transform">
-                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
             </div>
       </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Schedule Section */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative lg:col-span-3">
-            <div className="flex justify-between items-center mb-3">
-               <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs md:text-sm">
-                 <Calendar className="w-4 h-4 text-blue-500" /> الجدول المدرسي
-               </h3>
-               <div className="flex gap-2">
-                   <button onClick={() => setShowTimeSettings(true)} className="text-[9px] md:text-xs bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
-                     <Clock className="w-3 h-3" /> التوقيت
-                   </button>
-                   <button onClick={() => setIsEditingSchedule(true)} className="text-[9px] md:text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black flex items-center gap-1 active:scale-95 transition-transform">
-                     <Edit2 className="w-3 h-3" /> تعديل
-                   </button>
-               </div>
-            </div>
+      {/* 3. Grid Schedule (2 Rows x 4 Columns) - REDUCED HEIGHT */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] p-3 shadow-sm border border-white/50 relative">
+         <div className="flex justify-between items-center mb-2">
+           <h3 className="font-black text-slate-800 flex items-center gap-1.5 text-xs">
+             <Calendar className="w-3.5 h-3.5 text-indigo-500" strokeWidth={2.5} />
+             جدول {todayName}
+           </h3>
+           <div className="flex gap-1">
+               <button onClick={() => setShowTimeSettings(true)} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 border border-amber-100">
+                   <Clock className="w-3 h-3" strokeWidth={2.5}/>
+               </button>
+               <button onClick={() => setIsEditingSchedule(true)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 border border-indigo-100">
+                   <Edit2 className="w-3 h-3" strokeWidth={2.5} />
+               </button>
+           </div>
+         </div>
 
-            {todaySchedule ? (
-               <div className="space-y-2">
-                 <p className="text-[9px] md:text-xs font-bold text-gray-400 mb-1">جدول اليوم: {todayName}</p>
-                 <div className="grid grid-cols-4 md:grid-cols-8 gap-1.5">
-                    {todaySchedule.periods.slice(0, 8).map((p, idx) => {
-                       const time = periodTimes[idx];
-                       return (
-                           <div key={idx} className={`p-1.5 md:p-3 rounded-lg text-center border relative overflow-hidden ${p ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-transparent text-gray-300'}`}>
-                              <span className="block text-[7px] md:text-[9px] font-black opacity-50 mb-0.5">حـ{idx + 1}</span>
-                              <span className="block text-[10px] md:text-xs font-black truncate leading-tight mb-1">{p || '-'}</span>
-                              {/* عرض التوقيت */}
-                              {time && time.startTime && (
-                                  <div className="text-[6px] md:text-[8px] font-bold text-gray-400 bg-white/50 rounded px-1">
-                                      {time.startTime} - {time.endTime}
-                                  </div>
-                              )}
-                           </div>
-                       );
-                    })}
-                 </div>
-               </div>
-            ) : (
-              <div className="p-3 bg-gray-50 rounded-xl text-center">
-                <p className="text-[10px] font-bold text-gray-400">اليوم عطلة أو خارج أيام الجدول</p>
-              </div>
-            )}
+         {todaySchedule ? (
+           <div className="grid grid-cols-4 gap-1.5">
+                {todaySchedule.periods.slice(0, 8).map((p, idx) => {
+                   const time = periodTimes[idx];
+                   const isActive = p && p !== '';
+                   return (
+                       <div key={idx} className={`flex flex-col items-center justify-between p-1.5 rounded-xl border transition-all h-[75px] ${isActive ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}>
+                          <span className="text-[8px] font-black text-slate-300 w-full text-right">#{idx + 1}</span>
+                          <span className={`text-[9px] font-black text-center leading-tight line-clamp-2 w-full break-words ${isActive ? 'text-indigo-900' : 'text-slate-300'}`}>
+                              {p || '-'}
+                          </span>
+                          {time && time.startTime ? (
+                              <div className="mt-0.5 text-[7px] font-bold text-slate-400 bg-white/60 px-1 py-0.5 rounded-full">
+                                  {time.startTime}
+                              </div>
+                          ) : <div className="h-3"></div>}
+                       </div>
+                   );
+                })}
+           </div>
+        ) : (
+          <div className="text-center py-4 text-xs text-gray-400 font-bold bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            لا توجد حصص اليوم
           </div>
+        )}
+      </div>
 
-          {/* Attendance Chart */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm lg:col-span-1">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-black text-gray-800 flex items-center gap-1.5 text-xs md:text-sm"><Users className="w-4 h-4 text-blue-500" /> حضور اليوم</h3>
-              <span className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black">{new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })}</span>
-            </div>
-            <div className="flex items-center gap-3 justify-center lg:flex-col lg:gap-5">
-              <div className="h-24 w-24 md:h-32 md:w-32 shrink-0">
+      {/* 4. Compact Stats Grid (Side-by-Side) - REDUCED HEIGHT */}
+      <div className="grid grid-cols-2 gap-2 pb-16 md:pb-0">
+          {/* Attendance (Left) */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] p-2 shadow-sm border border-white/50 flex flex-col justify-center items-center relative overflow-hidden h-[100px]">
+              <div className="absolute top-2 right-2 text-[9px] font-black text-slate-400">الحضور</div>
+              <div className="h-12 w-12 relative my-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie 
-                      data={pieData} 
-                      cx="50%" 
-                      cy="50%" 
-                      innerRadius={30} 
-                      outerRadius={45} 
-                      paddingAngle={5} 
-                      dataKey="value" 
-                      stroke="none"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={hasAttendanceData ? COLORS[index % COLORS.length] : '#f1f5f9'} />
-                      ))}
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={15} outerRadius={24} paddingAngle={5} dataKey="value" stroke="none">
+                      {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={hasAttendanceData ? COLORS[index % COLORS.length] : '#f1f5f9'} />)}
                     </Pie>
-                    <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <Users className="w-3 h-3 text-slate-300" />
+                </div>
               </div>
-              <div className="flex-1 lg:w-full space-y-1.5 lg:flex lg:space-y-0 lg:gap-2">
-                <div className="flex-1 p-2 bg-emerald-50 rounded-lg border border-emerald-50"><p className="text-[8px] text-emerald-600 font-black mb-0.5">حاضر</p><p className="text-sm font-black text-emerald-700">{attendanceToday.present}</p></div>
-                <div className="flex-1 p-2 bg-rose-50 rounded-lg border border-rose-50"><p className="text-[8px] text-rose-600 font-black mb-0.5">غائب</p><p className="text-sm font-black text-rose-700">{attendanceToday.absent}</p></div>
+              <div className="flex gap-2 text-[8px] font-black">
+                  <span className="text-emerald-500">{attendanceToday.present} حاضر</span>
+                  <span className="text-rose-500">{attendanceToday.absent} غائب</span>
               </div>
-            </div>
+          </div>
+
+          {/* Behavior (Right - Stacked) */}
+          <div className="flex flex-col gap-1.5 h-[100px]">
+              <div className="flex-1 bg-emerald-50 rounded-2xl p-2 px-3 border border-emerald-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-sm text-emerald-500">
+                          <Award className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[9px] font-black text-emerald-800">إيجابي</span>
+                  </div>
+                  <span className="text-lg font-black text-emerald-600">{behaviorStats.positive}</span>
+              </div>
+              
+              <div className="flex-1 bg-rose-50 rounded-2xl p-2 px-3 border border-rose-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                      <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-sm text-rose-500">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[9px] font-black text-rose-800">سلبي</span>
+                  </div>
+                  <span className="text-lg font-black text-rose-600">{behaviorStats.negative}</span>
+              </div>
           </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-        <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Award className="text-emerald-500 w-4 h-4 md:w-5 md:h-5" /></div>
-          <div><p className="text-gray-400 text-[8px] md:text-xs font-black">سلوك إيجابي</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.positive}</p></div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 flex items-center gap-2.5 shadow-sm">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0"><AlertCircle className="text-rose-500 w-4 h-4 md:w-5 md:h-5" /></div>
-          <div><p className="text-gray-400 text-[8px] md:text-xs font-black">تنبيهات سلوكية</p><p className="text-sm md:text-lg font-black text-gray-900">{behaviorStats.negative}</p></div>
-        </div>
-      </div>
-
+      {/* ... Modals ... */}
+      
       {/* Edit Info Modal */}
       {isEditingInfo && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[120] flex items-center justify-center p-6" onClick={() => setIsEditingInfo(false)}>
-              <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[120] flex items-center justify-center p-6 animate-in fade-in duration-200" onClick={() => setIsEditingInfo(false)}>
+              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 border border-white/50 max-h-[90vh] md:max-h-[600px] overflow-y-auto" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-black text-gray-900">تعديل البيانات</h3>
-                      <button onClick={() => setIsEditingInfo(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4"/></button>
+                      <h3 className="font-black text-lg text-gray-900">تعديل البيانات</h3>
+                      <button onClick={() => setIsEditingInfo(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X className="w-5 h-5 text-gray-500"/></button>
                   </div>
                   <div className="space-y-4">
                       <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400">اسم المعلم / المعلمة</label>
-                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" />
+                          <label className="text-[10px] font-black text-gray-400 uppercase">اسم المعلم</label>
+                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm font-bold outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                       </div>
                       <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400">المادة الدراسية</label>
-                          <input type="text" value={editSubject} onChange={e => setEditSubject(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" placeholder="مثال: الرياضيات" />
+                          <label className="text-[10px] font-black text-gray-400 uppercase">المادة</label>
+                          <input type="text" value={editSubject} onChange={e => setEditSubject(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm font-bold outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                       </div>
                       <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400">اسم المدرسة</label>
-                          <input type="text" value={editSchool} onChange={e => setEditSchool(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500" />
+                          <label className="text-[10px] font-black text-gray-400 uppercase">المدرسة</label>
+                          <input type="text" value={editSchool} onChange={e => setEditSchool(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm font-bold outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                       </div>
                       <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400">المحافظة التعليمية</label>
-                          <select 
-                              value={editGovernorate} 
-                              onChange={e => setEditGovernorate(e.target.value)} 
-                              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-blue-500 appearance-none"
-                          >
+                          <label className="text-[10px] font-black text-gray-400 uppercase">المحافظة</label>
+                          <select value={editGovernorate} onChange={e => setEditGovernorate(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm font-bold outline-none focus:border-indigo-500 appearance-none">
                                 <option value="">اختر المحافظة...</option>
-                                {OMAN_GOVERNORATES.map(gov => (
-                                    <option key={gov} value={gov}>{gov}</option>
-                                ))}
+                                {OMAN_GOVERNORATES.map(gov => <option key={gov} value={gov}>{gov}</option>)}
                           </select>
                       </div>
-                      <button onClick={handleSaveInfo} className="w-full bg-blue-600 text-white rounded-xl py-3 text-xs font-black shadow-lg shadow-blue-200 mt-2">حفظ التغييرات</button>
+                      <button onClick={handleSaveInfo} className="w-full bg-indigo-600 text-white rounded-2xl py-4 text-sm font-black shadow-lg shadow-indigo-200 mt-2 hover:bg-indigo-700 active:scale-95 transition-all">حفظ التغييرات</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* Edit Time Settings Modal */}
-      {showTimeSettings && (
-         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-end sm:items-center justify-center" onClick={() => setShowTimeSettings(false)}>
-            <div className="bg-white w-full max-w-sm h-[80vh] sm:h-auto rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
-               <div className="flex justify-between items-center mb-6">
-                   <h3 className="font-black text-sm text-gray-900 flex items-center gap-2">
-                       <Clock className="w-4 h-4 text-blue-600"/>
-                       وقت بداية ونهاية الحصص
-                   </h3>
-                   <button onClick={() => setShowTimeSettings(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
-               </div>
-               
-               <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-4">
-                   <p className="text-[10px] font-bold text-gray-400 text-center mb-2">اضبط التوقيت لتفعيل جرس التنبيه التلقائي</p>
-                   {periodTimes.map((period, index) => (
-                       <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
-                           <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-gray-400 shadow-sm border border-gray-100">
-                               {period.periodNumber}
-                           </div>
-                           <div className="flex items-center gap-2 flex-1">
-                               <div className="flex-1 relative">
-                                   <label className="text-[8px] font-bold text-gray-400 absolute -top-1.5 right-2 bg-gray-50 px-1">من</label>
-                                   <input 
-                                     type="time" 
-                                     value={period.startTime} 
-                                     onChange={(e) => handleTimeChange(index, 'startTime', e.target.value)}
-                                     className="w-full bg-white rounded-lg border border-gray-200 text-xs font-bold px-2 py-2 outline-none text-center"
-                                   />
-                               </div>
-                               <span className="text-gray-300"><ArrowRight className="w-3 h-3"/></span>
-                               <div className="flex-1 relative">
-                                    <label className="text-[8px] font-bold text-gray-400 absolute -top-1.5 right-2 bg-gray-50 px-1">إلى</label>
-                                    <input 
-                                     type="time" 
-                                     value={period.endTime} 
-                                     onChange={(e) => handleTimeChange(index, 'endTime', e.target.value)}
-                                     className="w-full bg-white rounded-lg border border-gray-200 text-xs font-bold px-2 py-2 outline-none text-center"
-                                   />
-                               </div>
-                           </div>
-                       </div>
-                   ))}
-               </div>
-               <button onClick={() => setShowTimeSettings(false)} className="w-full py-3.5 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-blue-200 mt-2">حفظ التوقيت</button>
-            </div>
-         </div>
-      )}
-
-      {/* Edit Schedule Modal */}
+      {/* Edit Schedule Modal - CENTERED */}
       {isEditingSchedule && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center" onClick={() => setIsEditingSchedule(false)}>
-           <div className="bg-white w-full max-w-md h-[90vh] sm:h-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-5">
-                 <h3 className="font-black text-sm text-gray-900">تعديل الجدول المدرسي</h3>
-                 <button onClick={() => setIsEditingSchedule(false)} className="p-2 bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsEditingSchedule(false)}>
+           <div className="bg-white w-full max-w-md h-[80vh] md:h-auto md:max-h-[600px] rounded-[2.5rem] p-8 shadow-2xl flex flex-col border border-white/50 relative overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                 <h3 className="font-black text-lg text-gray-900">تعديل الجدول</h3>
+                 <button onClick={() => setIsEditingSchedule(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X className="w-5 h-5 text-gray-500" /></button>
               </div>
 
-              {/* Import Section */}
-              <div className="mb-4">
-                  <label className="flex items-center justify-center gap-2 w-full p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 cursor-pointer active:scale-95 transition-all shadow-sm">
-                      {isImportingSchedule ? <Loader2 className="w-4 h-4 animate-spin"/> : <FileSpreadsheet className="w-4 h-4"/>}
-                      <span className="text-xs font-black">استيراد الجدول من Excel</span>
-                      <input 
-                          type="file" 
-                          accept=".xlsx, .xls, .csv" 
-                          className="hidden" 
-                          onChange={handleImportSchedule}
-                          disabled={isImportingSchedule}
-                      />
+              <div className="mb-6">
+                  <label className="flex items-center justify-center gap-3 w-full p-4 bg-emerald-50 text-emerald-700 rounded-[2rem] border border-emerald-100 cursor-pointer active:scale-95 transition-all shadow-sm hover:shadow-md">
+                      {isImportingSchedule ? <Loader2 className="w-5 h-5 animate-spin"/> : <FileSpreadsheet className="w-5 h-5"/>}
+                      <span className="text-xs font-black">استيراد من Excel</span>
+                      <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImportSchedule} disabled={isImportingSchedule} />
                   </label>
-                  <p className="text-[9px] text-gray-400 text-center mt-1.5 font-bold">
-                      يجب أن يحتوي الملف على عمود بأسماء الأيام (الأحد، الاثنين...) وتليه الحصص في نفس الصف
-                  </p>
               </div>
 
-              {/* Day Tabs */}
               <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar">
                 {schedule.map((day, idx) => (
-                  <button 
-                    key={idx}
-                    onClick={() => setActiveDayIndex(idx)}
-                    className={`px-3 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all border ${activeDayIndex === idx ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-500 border-transparent'}`}
-                  >
+                  <button key={idx} onClick={() => setActiveDayIndex(idx)} className={`px-5 py-2.5 rounded-2xl text-[11px] font-black whitespace-nowrap transition-all border ${activeDayIndex === idx ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 text-gray-500 border-transparent hover:bg-gray-100'}`}>
                     {day.dayName}
                   </button>
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 pb-6 custom-scrollbar">
-                 <p className="text-[10px] font-bold text-gray-500">حصص يوم: <span className="text-blue-600">{schedule[activeDayIndex].dayName}</span></p>
+              <div className="flex-1 overflow-y-auto space-y-2 pb-6 custom-scrollbar pr-1">
                  {schedule[activeDayIndex].periods.map((period, pIdx) => (
-                    <div key={pIdx} className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-2xl border border-gray-100">
-                       <span className="w-7 h-7 rounded-lg bg-white flex items-center justify-center font-black text-[9px] text-gray-400 border border-gray-100">{pIdx + 1}</span>
-                       <input 
-                         type="text" 
-                         value={period} 
-                         onChange={(e) => handlePeriodChange(activeDayIndex, pIdx, e.target.value)}
-                         placeholder={`المادة / الفصل للحصة ${pIdx + 1}`}
-                         className="flex-1 bg-transparent text-xs font-bold outline-none text-gray-800 placeholder:text-gray-300"
-                       />
+                    <div key={pIdx} className="flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-100 focus-within:border-indigo-300 focus-within:bg-white transition-colors">
+                       <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-xs text-gray-400 shadow-sm border border-gray-100">{pIdx + 1}</span>
+                       <input type="text" value={period} onChange={(e) => handlePeriodChange(activeDayIndex, pIdx, e.target.value)} placeholder={`مادة / فصل`} className="flex-1 bg-transparent text-sm font-bold outline-none text-gray-800 placeholder:text-gray-300 px-2" />
                     </div>
                  ))}
               </div>
-
-              <button onClick={() => setIsEditingSchedule(false)} className="w-full py-3.5 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-blue-200 mt-2">حفظ الجدول</button>
+              <button onClick={() => setIsEditingSchedule(false)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-200 mt-2 hover:bg-indigo-700 active:scale-95 transition-all">حفظ الجدول</button>
            </div>
         </div>
+      )}
+
+      {/* Edit Time Settings Modal - CENTERED */}
+      {showTimeSettings && (
+         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowTimeSettings(false)}>
+            <div className="bg-white w-full max-w-sm h-[80vh] md:h-auto md:max-h-[600px] rounded-[2.5rem] p-8 shadow-2xl flex flex-col border border-white/50" onClick={e => e.stopPropagation()}>
+               <div className="flex justify-between items-center mb-6">
+                   <h3 className="font-black text-lg text-gray-900 flex items-center gap-2"><Clock className="w-6 h-6 text-indigo-600"/> التوقيت</h3>
+                   <button onClick={() => setShowTimeSettings(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X className="w-5 h-5 text-gray-500" /></button>
+               </div>
+               <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-4">
+                   {periodTimes.map((period, index) => (
+                       <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-sm text-gray-500 shadow-sm">{period.periodNumber}</div>
+                           <div className="flex items-center gap-2 flex-1">
+                               <input type="time" value={period.startTime} onChange={(e) => handleTimeChange(index, 'startTime', e.target.value)} className="flex-1 bg-white rounded-xl border border-gray-200 text-xs font-bold px-1 py-3 text-center outline-none focus:border-indigo-300" />
+                               <ArrowRight className="w-4 h-4 text-gray-300"/>
+                               <input type="time" value={period.endTime} onChange={(e) => handleTimeChange(index, 'endTime', e.target.value)} className="flex-1 bg-white rounded-xl border border-gray-200 text-xs font-bold px-1 py-3 text-center outline-none focus:border-indigo-300" />
+                           </div>
+                       </div>
+                   ))}
+               </div>
+               <button onClick={() => setShowTimeSettings(false)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl mt-2 hover:bg-indigo-700 active:scale-95 transition-all">حفظ التوقيت</button>
+            </div>
+         </div>
       )}
     </div>
   );

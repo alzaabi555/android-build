@@ -1,26 +1,20 @@
 import React from 'react';
 import { ExternalLink, Building2, Lock, ShieldCheck, ChevronRight, Smartphone } from 'lucide-react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 const MinistrySync: React.FC = () => {
-  // تحديث الرابط إلى صفحة تسجيل الدخول المباشرة للبوابة التعليمية (نظام الشهادات) لتجنب مشاكل التحميل والشاشة البيضاء
   const url = "https://certificate.moe.gov.om/Portal/Services/UserLoginnew.aspx";
 
-  const handleOpenPlatform = () => {
-    // @ts-ignore
-    const cordova = window.cordova;
-
-    if (!cordova || !cordova.InAppBrowser) {
-        // تفعيل الفتح في نافذة جديدة عند التجربة على المتصفح العادي
+  const handleOpenPlatform = async () => {
+    if (Capacitor.isNativePlatform()) {
+        // Use Capacitor Browser for mobile to keep user "in-app" but with a full browser UI
+        await Browser.open({ url: url, presentationStyle: 'fullscreen' });
+    } else {
+        // Fallback for Desktop/Web
+        // In Electron, main.js intercepts this and opens the system browser
         window.open(url, '_blank');
-        return;
     }
-
-    // إعدادات المتصفح مع خيارات مسح الذاكرة المؤقتة (cache) لضمان عدم ظهور شاشة بيضاء بسبب ملفات قديمة
-    const options = 'location=yes,toolbar=yes,closebuttoncaption=إغلاق,hidenavigationbuttons=no,toolbarposition=bottom,presentationstyle=fullscreen,hardwareback=yes,clearcache=yes,clearsessioncache=yes';
-    const target = '_blank';
-
-    // فتح المتصفح
-    cordova.InAppBrowser.open(url, target, options);
   };
 
   return (
@@ -50,7 +44,7 @@ const MinistrySync: React.FC = () => {
                <p className="text-[10px] font-bold text-amber-800 leading-relaxed text-right">
                   سيتم فتح صفحة تسجيل الدخول في نافذة آمنة. 
                   <br/>
-                  للعودة للتطبيق، استخدم زر <strong>"إغلاق"</strong> أو <strong>"X"</strong>.
+                  للعودة للتطبيق، استخدم زر <strong>"Done"</strong> أو <strong>"إغلاق"</strong>.
                </p>
             </div>
          </div>

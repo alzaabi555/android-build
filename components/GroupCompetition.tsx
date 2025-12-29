@@ -145,7 +145,7 @@ const GroupCompetition: React.FC<GroupCompetitionProps> = ({ students, classes, 
 
         {/* --- GAME VIEW --- */}
         {!isSetupMode && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4">
                 {groups.map((group) => {
                     const style = getStyle(group.color);
                     const score = calculateTeamScore(group.id);
@@ -153,51 +153,51 @@ const GroupCompetition: React.FC<GroupCompetitionProps> = ({ students, classes, 
                     const membersCount = getTeamStudents(group.id).length;
 
                     return (
-                        <div key={group.id} className={`relative bg-white rounded-[2.5rem] p-5 shadow-sm border-2 transition-all duration-300 ${isLeader ? 'border-amber-400 scale-[1.02] shadow-xl shadow-amber-100' : 'border-gray-100'}`}>
+                        <div key={group.id} className={`relative bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-3 md:p-5 shadow-sm border-2 transition-all duration-300 ${isLeader ? 'border-amber-400 scale-[1.02] shadow-xl shadow-amber-100' : 'border-gray-100'}`}>
                             
                             {isLeader && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-white px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 shadow-sm z-10">
-                                    <Crown className="w-3 h-3 fill-white" />
+                                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-white px-2 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-sm z-10 whitespace-nowrap">
+                                    <Crown className="w-2.5 h-2.5 fill-white" />
                                     المتصدر
                                 </div>
                             )}
 
-                            <div className={`h-24 rounded-[2rem] ${style.light} flex items-center justify-between px-6 mb-4 relative overflow-hidden`}>
+                            <div className={`h-16 md:h-24 rounded-2xl md:rounded-[2rem] ${style.light} flex items-center justify-between px-3 md:px-6 mb-3 relative overflow-hidden`}>
                                 <div className="z-10">
-                                    <h3 className={`font-black text-lg ${style.text}`}>{group.name}</h3>
+                                    <h3 className={`font-black text-sm md:text-lg ${style.text}`}>{group.name}</h3>
                                 </div>
                                 <div className="text-center z-10">
-                                    <span className={`block text-3xl font-black ${style.text}`}>{score}</span>
-                                    <span className="text-[9px] font-bold text-gray-400 opacity-80">نقطة</span>
+                                    <span className={`block text-xl md:text-3xl font-black ${style.text}`}>{score}</span>
+                                    <span className="text-[8px] md:text-[9px] font-bold text-gray-400 opacity-80">نقطة</span>
                                 </div>
-                                <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full ${style.bg} opacity-10 blur-xl`}></div>
+                                <div className={`absolute -right-4 -bottom-4 w-16 h-16 md:w-24 md:h-24 rounded-full ${style.bg} opacity-10 blur-xl`}></div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 mb-4">
-                                <button onClick={() => awardTeam(group.id, 5, 'هدوء ونظام')} className="py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black transition-colors active:scale-95 flex flex-col items-center gap-1">
-                                    <Plus className="w-4 h-4" />
-                                    <span>نظام (+5)</span>
+                            <div className="grid grid-cols-2 gap-1 md:gap-2 mb-3">
+                                <button onClick={() => awardTeam(group.id, 5, 'هدوء ونظام')} className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black transition-colors active:scale-95 flex flex-col items-center gap-0.5">
+                                    <Plus className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>نظام</span>
                                 </button>
-                                <button onClick={() => awardTeam(group.id, 10, 'إجابة جماعية')} className="py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[10px] font-black transition-colors active:scale-95 flex flex-col items-center gap-1">
-                                    <Zap className="w-4 h-4" />
-                                    <span>تفاعل (+10)</span>
+                                <button onClick={() => awardTeam(group.id, 10, 'إجابة جماعية')} className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black transition-colors active:scale-95 flex flex-col items-center gap-0.5">
+                                    <Zap className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>تفاعل</span>
                                 </button>
-                                <button onClick={() => awardTeam(group.id, -5, 'إزعاج جماعي')} className="py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[10px] font-black transition-colors active:scale-95 flex flex-col items-center gap-1 col-span-2">
-                                    <Minus className="w-4 h-4" />
-                                    <span>خصم مخالفة (-5)</span>
+                                <button onClick={() => awardTeam(group.id, -5, 'إزعاج جماعي')} className="py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[9px] font-black transition-colors active:scale-95 flex flex-col items-center gap-0.5 col-span-2">
+                                    <Minus className="w-3 h-3 md:w-4 md:h-4" />
+                                    <span>مخالفة</span>
                                 </button>
                             </div>
 
-                            <div className="bg-gray-50 rounded-2xl p-3 min-h-[80px]">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[10px] font-bold text-gray-400">الأعضاء ({membersCount})</span>
+                            <div className="bg-gray-50 rounded-xl p-2 md:p-3 min-h-[60px] md:min-h-[80px]">
+                                <div className="flex justify-between items-center mb-1 md:mb-2">
+                                    <span className="text-[9px] md:text-[10px] font-bold text-gray-400">الأعضاء ({membersCount})</span>
                                     <Users className="w-3 h-3 text-gray-300" />
                                 </div>
                                 <div className="flex flex-wrap gap-1">
                                     {getTeamStudents(group.id).map(s => (
-                                        <span key={s.id} className="text-[9px] bg-white border border-gray-100 px-1.5 py-0.5 rounded text-gray-600 truncate max-w-[60px]">{s.name.split(' ')[0]}</span>
+                                        <span key={s.id} className="text-[8px] md:text-[9px] bg-white border border-gray-100 px-1 py-0.5 rounded text-gray-600 truncate max-w-[50px] md:max-w-[60px]">{s.name.split(' ')[0]}</span>
                                     ))}
-                                    {membersCount === 0 && <span className="text-[9px] text-gray-300 mx-auto mt-2">لا يوجد أعضاء</span>}
+                                    {membersCount === 0 && <span className="text-[8px] text-gray-300 mx-auto mt-1">لا يوجد أعضاء</span>}
                                 </div>
                             </div>
                         </div>
@@ -217,7 +217,7 @@ const GroupCompetition: React.FC<GroupCompetitionProps> = ({ students, classes, 
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {groups.map(group => {
                         const style = getStyle(group.color);
                         const memberCount = getTeamStudents(group.id).length;
