@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Student, AttendanceStatus } from '../types';
 import { Check, X, Clock, Calendar, Filter, MessageCircle, ChevronDown, CheckCircle2, RotateCcw, Search } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 interface AttendanceTrackerProps {
   students: Student[];
@@ -62,7 +63,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
     setNotificationTarget({ student, type });
   };
 
-  const performNotification = (method: 'whatsapp' | 'sms') => {
+  const performNotification = async (method: 'whatsapp' | 'sms') => {
       if(!notificationTarget || !notificationTarget.student.parentPhone) {
           alert('لا يوجد رقم هاتف مسجل');
           return;
@@ -92,14 +93,15 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد ${statusText} اليوم ${new Date(selectedDate).toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
-          // استخدام رابط HTTPS الرسمي لتجنب خطأ ERR_UNKNOWN_URL_SCHEME
-          // استخدام _system يجبر التطبيق على فتح المتصفح الخارجي أو تطبيق الواتساب مباشرة
           const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-          window.open(url, '_system');
+          try {
+            await Browser.open({ url: url });
+          } catch (e) {
+            window.open(url, '_blank');
+          }
       } else {
-          // SMS
-          const url = `sms:${cleanPhone}?body=${msg}`;
-          window.open(url, '_system');
+          // SMS - use location.href for schemes to avoid browser popup issues
+          window.location.href = `sms:${cleanPhone}?body=${msg}`;
       }
       setNotificationTarget(null);
   };

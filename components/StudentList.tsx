@@ -5,6 +5,7 @@ import { Search, ThumbsUp, ThumbsDown, FileBarChart, X, UserPlus, Filter, Edit, 
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Browser } from '@capacitor/browser';
 
 declare var html2pdf: any;
 
@@ -98,7 +99,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
     }
   };
 
-  const performNotification = (method: 'whatsapp' | 'sms') => {
+  const performNotification = async (method: 'whatsapp' | 'sms') => {
       if(!notificationTarget || !notificationTarget.student.parentPhone) {
           alert('لا يوجد رقم هاتف مسجل');
           return;
@@ -118,12 +119,14 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد تسرب من الحصة اليوم ${new Date().toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
-          // استخدام HTTPS API لتجنب أخطاء البروتوكول في الويب فيو
           const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-          window.open(url, '_system');
+          try {
+            await Browser.open({ url: url });
+          } catch (e) {
+            window.open(url, '_blank');
+          }
       } else {
-          const url = `sms:${cleanPhone}?body=${msg}`;
-          window.open(url, '_system');
+          window.location.href = `sms:${cleanPhone}?body=${msg}`;
       }
       setNotificationTarget(null);
   };
