@@ -102,24 +102,23 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       if(!notificationTarget || !notificationTarget.student.parentPhone) return;
       const { student } = notificationTarget;
       
-      // تنظيف الرقم بشكل صارم
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
-      else if (cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
+      else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
 
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد تسرب من الحصة اليوم ${new Date().toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
+          const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
           if (Capacitor.isNativePlatform()) {
-              // استخدام البروتوكول المباشر للأندرويد
-              window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
+              window.location.href = whatsappUrl;
           } else {
               window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
           }
       } else {
-          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?&body=${msg}`;
-          else window.open(`sms:${cleanPhone}?&body=${msg}`, '_self');
+          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?body=${msg}`;
+          else window.location.href = `sms:${cleanPhone}?body=${msg}`;
       }
       setNotificationTarget(null);
   };

@@ -66,32 +66,42 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       if(!notificationTarget || !notificationTarget.student.parentPhone) return;
       const { student, type } = notificationTarget;
       
-      // تنظيف دقيق للرقم: إبقاء الأرقام فقط
+      // 1. تنظيف الرقم (إزالة أي شيء ليس رقماً)
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       
-      // معالجة الصيغ الدولية والمحلية
+      // 2. معالجة البادئات
+      // إزالة 00 في البداية
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       
-      // إذا كان الرقم 8 خانات (عماني)، نضيف المفتاح 968
-      if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
-      // إذا كان يبدأ بـ 0 (مثل 050..)، نحذف الصفر ونضيف المفتاح (افتراض عماني، يمكن تعديله)
-      else if (cleanPhone.startsWith('0') && cleanPhone.length === 9) cleanPhone = '968' + cleanPhone.substring(1);
+      // معالجة الأرقام المحلية (مثال عمان: 8 خانات، أو 9 تبدأ بـ0)
+      if (cleanPhone.length === 8) {
+          cleanPhone = '968' + cleanPhone;
+      } else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) {
+          cleanPhone = '968' + cleanPhone.substring(1);
+      }
 
       const statusText = type === 'absent' ? 'تغيب عن المدرسة' : 'تأخر في الحضور إلى المدرسة';
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد ${statusText} اليوم ${new Date(selectedDate).toLocaleDateString('ar-EG')}.`);
 
       if (method === 'whatsapp') {
+          // استخدام البروتوكول المباشر هو الحل الأضمن للأندرويد لفتح التطبيق
+          const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
+          
           if (Capacitor.isNativePlatform()) {
-              // استخدام window.location.href مع البروتوكول المباشر هو الطريقة الأكثر موثوقية للأندرويد
-              // هذا يجبر النظام على البحث عن التطبيق المثبت فوراً
-              window.location.href = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
+              // window.location.href يقوم بتوجيه النظام للتعامل مع الرابط مباشرة (Intent)
+              window.location.href = whatsappUrl;
           } else {
-              // للويب نستخدم الرابط العادي
+              // للويب
               window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
           }
       } else {
-          if (Capacitor.isNativePlatform()) window.location.href = `sms:${cleanPhone}?&body=${msg}`;
-          else window.open(`sms:${cleanPhone}?&body=${msg}`, '_self');
+          // SMS
+          const smsUrl = `sms:${cleanPhone}?body=${msg}`;
+          if (Capacitor.isNativePlatform()) {
+              window.location.href = smsUrl;
+          } else {
+              window.location.href = smsUrl;
+          }
       }
       setNotificationTarget(null);
   };
@@ -110,9 +120,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
 
   const IOSSegmentedControl = ({ status, onChange }: { status?: AttendanceStatus, onChange: (s: AttendanceStatus) => void }) => {
       return (
-          // Increased height from h-10 to h-14 for better visibility
           <div className="bg-[#767680]/15 p-1 rounded-2xl flex h-14 w-full max-w-[280px] relative isolate">
-              {/* Animated Background for Active State */}
               <div className={`absolute top-1 bottom-1 w-[calc(33.33%-2px)] bg-white rounded-[12px] shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-[-1] ${
                   status === 'present' ? 'right-1' : 
                   status === 'absent' ? 'right-1/2 translate-x-1/2' : 
