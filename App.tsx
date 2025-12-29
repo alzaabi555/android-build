@@ -50,9 +50,11 @@ interface ErrorBoundaryState {
   errorMsg: string;
 }
 
-// --- Error Boundary Component ---
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, errorMsg: '' };
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
 
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true, errorMsg: error.toString() };
@@ -89,14 +91,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// Modern Toast Notification
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error' | 'info' | 'bell', onClose: () => void }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  // ألوان عصرية وتأثير زجاجي للتنبيهات
   const styles = type === 'success' 
     ? 'bg-emerald-500/90 text-white shadow-emerald-500/30' 
     : type === 'error' 
@@ -152,7 +152,6 @@ const verifyIntegrity = () => {
 };
 
 const AppContent: React.FC = () => {
-  // Initialize activeTab from localStorage to persist state across restarts
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
   
   useEffect(() => {
