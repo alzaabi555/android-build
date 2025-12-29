@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Student, BehaviorType } from '../types';
-import { Search, ThumbsUp, ThumbsDown, FileBarChart, X, UserPlus, Filter, Edit, FileSpreadsheet, GraduationCap, ChevronLeft, Clock, Download, MessageCircle, Smartphone, Loader2, Sparkles, Shuffle, Settings, Trash2, Check, PenSquare, ChevronDown, UserX, MoveRight, LogOut, SlidersHorizontal, MoreHorizontal, Plus, Camera, Image as ImageIcon } from 'lucide-react';
+import { Search, ThumbsUp, ThumbsDown, FileBarChart, X, UserPlus, Filter, Edit, FileSpreadsheet, GraduationCap, ChevronLeft, Clock, Download, MessageCircle, Smartphone, Loader2, Sparkles, Shuffle, Settings, Trash2, Check, PenSquare, ChevronDown, UserX, MoveRight, LogOut, SlidersHorizontal, MoreHorizontal, Plus, Camera, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -51,10 +51,14 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
   const [showNegativeReasons, setShowNegativeReasons] = useState<{student: Student} | null>(null);
   const [showPositiveReasons, setShowPositiveReasons] = useState<{student: Student} | null>(null);
   const [customReason, setCustomReason] = useState('');
+  
+  // Reporting State
+  const [notificationTarget, setNotificationTarget] = useState<{student: Student, type: 'truancy'} | null>(null);
 
   const NEGATIVE_REASONS = [
       "إزعاج في الحصة", "عدم حل الواجب", "نسيان الكتب/الأدوات", "التأخر عن الحصة", 
-      "النوم في الحصة", "مشاجرة مع زميل", "استخدام الهاتف", "أكل/شرب في الحصة"
+      "النوم في الحصة", "مشاجرة مع زميل", "استخدام الهاتف", "أكل/شرب في الحصة",
+      "التسرب من الحصة"
   ];
 
   const POSITIVE_REASONS = [
@@ -79,10 +83,42 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
     };
     onUpdateStudent({ ...student, behaviors: [newBehavior, ...(student.behaviors || [])] });
     
-    // Close modals and reset custom input
+    // Close modals
     if(showNegativeReasons) setShowNegativeReasons(null);
     if(showPositiveReasons) setShowPositiveReasons(null);
     setCustomReason('');
+
+    // Check for Truancy to trigger report
+    if (description === "التسرب من الحصة") {
+        if (student.parentPhone) {
+            setNotificationTarget({ student, type: 'truancy' });
+        } else {
+            alert('تم تسجيل السلوك، لكن لا يوجد رقم هاتف للإبلاغ.');
+        }
+    }
+  };
+
+  const performNotification = (method: 'whatsapp' | 'sms') => {
+      if(!notificationTarget || !notificationTarget.student.parentPhone) return;
+      const { student } = notificationTarget;
+      let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
+      if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+      if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
+      else if (cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
+
+      const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد تسرب من الحصة اليوم ${new Date().toLocaleDateString('ar-EG')}.`);
+
+      if (method === 'whatsapp') {
+          if (Capacitor.isNativePlatform()) {
+              window.open(`whatsapp://send?phone=${cleanPhone}&text=${msg}`, '_system');
+          } else {
+              window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`, '_blank');
+          }
+      } else {
+          if (Capacitor.isNativePlatform()) window.open(`sms:${cleanPhone}?&body=${msg}`, '_system');
+          else window.open(`sms:${cleanPhone}?&body=${msg}`, '_self');
+      }
+      setNotificationTarget(null);
   };
 
   const pickRandomStudent = () => {
@@ -223,22 +259,10 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       }
   };
 
-  // --- iOS Style Components ---
-
-  const ActionButton = ({ icon: Icon, onClick, className, label }: any) => (
-      <button 
-        onClick={onClick} 
-        className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl active:scale-90 transition-transform ${className}`}
-      >
-          <Icon className="w-6 h-6 mb-1" strokeWidth={2.5} />
-          {label && <span className="text-[9px] font-bold">{label}</span>}
-      </button>
-  );
-
   return (
     <div className="min-h-full bg-[#f2f2f7] pb-24 md:pb-8">
       
-      {/* iOS Navigation Bar - No longer sticky */}
+      {/* iOS Navigation Bar */}
       <div className="bg-[#f2f2f7] border-b border-gray-300/50 pt-safe-top transition-all">
           <div className="px-4 pb-2">
               <div className="flex justify-between items-end mb-3 pt-2">
@@ -298,10 +322,10 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       {/* Student List (Inset Grouped Style) */}
       <div className="px-4 mt-2 space-y-3">
           {filteredStudents.map(student => (
-              <div key={student.id} className="bg-white p-3.5 rounded-2xl flex items-center justify-between shadow-sm border border-gray-100/50 active:scale-[0.99] transition-transform duration-100">
-                  <div className="flex items-center gap-3.5 flex-1 min-w-0" onClick={() => onViewReport(student)}>
+              <div key={student.id} className="bg-white p-4 rounded-[20px] flex items-center justify-between shadow-sm border border-gray-100/50 active:scale-[0.99] transition-transform duration-100">
+                  <div className="flex items-center gap-4 flex-1 min-w-0" onClick={() => onViewReport(student)}>
                       {/* Avatar */}
-                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-black text-lg shrink-0 border border-gray-200 overflow-hidden relative">
+                      <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-black text-xl shrink-0 border border-gray-200 overflow-hidden relative">
                           {student.avatar ? (
                               <img src={student.avatar} alt={student.name} className="w-full h-full object-cover" />
                           ) : (
@@ -311,25 +335,25 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                       
                       {/* Info */}
                       <div className="min-w-0">
-                          <h3 className="text-sm font-black text-gray-900 truncate mb-0.5">{student.name}</h3>
-                          <p className="text-[10px] text-gray-400 font-bold truncate">{student.classes[0]} • {student.grade || 'طالب'}</p>
+                          <h3 className="text-base font-black text-gray-900 truncate mb-1">{student.name}</h3>
+                          <p className="text-[11px] text-gray-400 font-bold truncate">{student.classes[0]} • {student.grade || 'طالب'}</p>
                       </div>
                   </div>
 
                   {/* Quick Actions */}
-                  <div className="flex items-center gap-1.5 border-r border-gray-100 pr-1.5">
+                  <div className="flex items-center gap-2 border-r border-gray-100 pr-2">
                       <button 
                         onClick={() => setShowPositiveReasons({student})}
-                        className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center active:bg-emerald-600 active:text-white transition-colors"
+                        className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center active:bg-emerald-600 active:text-white transition-colors border border-emerald-100/50"
                       >
-                          <ThumbsUp className="w-4 h-4" />
+                          <ThumbsUp className="w-5 h-5" strokeWidth={2.5} />
                       </button>
                       
                       <button 
                         onClick={() => setShowNegativeReasons({student})}
-                        className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center active:bg-rose-600 active:text-white transition-colors"
+                        className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center active:bg-rose-600 active:text-white transition-colors border border-rose-100/50"
                       >
-                          <ThumbsDown className="w-4 h-4" />
+                          <ThumbsDown className="w-5 h-5" strokeWidth={2.5} />
                       </button>
 
                       <button 
@@ -340,9 +364,9 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                             setEditClass(student.classes[0] || '');
                             setEditAvatar(student.avatar || '');
                         }}
-                        className="w-8 h-8 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100"
+                        className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100"
                       >
-                          <MoreHorizontal className="w-5 h-5" />
+                          <MoreHorizontal className="w-5 h-5" strokeWidth={2.5} />
                       </button>
                   </div>
               </div>
@@ -419,15 +443,16 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                       </button>
                   </div>
                   
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
                       {NEGATIVE_REASONS.map((reason) => (
                           <button 
                             key={reason}
                             onClick={() => handleAddBehavior(showNegativeReasons.student, 'negative', reason, -1)}
-                            className="w-full bg-white p-3.5 rounded-xl text-right font-bold text-sm text-gray-800 active:bg-rose-50 border border-gray-100 flex justify-between items-center transition-colors"
+                            className={`w-full bg-white p-3.5 rounded-xl text-right font-bold text-sm text-gray-800 active:bg-rose-50 border border-gray-100 flex justify-between items-center transition-colors ${reason === "التسرب من الحصة" ? "bg-rose-50 border-rose-200 text-rose-800" : ""}`}
                           >
                               {reason}
-                              <ChevronLeft className="w-4 h-4 text-gray-300" />
+                              {reason === "التسرب من الحصة" && <MessageCircle className="w-4 h-4 text-rose-500 mr-2" />}
+                              <ChevronLeft className="w-4 h-4 text-gray-300 mr-auto" />
                           </button>
                       ))}
                   </div>
@@ -439,7 +464,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
           </div>
       )}
 
-      {/* 2.5 Positive Reason Sheet - CENTERED (Added) */}
+      {/* 2.5 Positive Reason Sheet - CENTERED */}
       {showPositiveReasons && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => { setShowPositiveReasons(null); setCustomReason(''); }}>
               <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[2rem] p-6 shadow-xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -468,7 +493,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                       </button>
                   </div>
                   
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
                       {POSITIVE_REASONS.map((reason) => (
                           <button 
                             key={reason}
@@ -643,6 +668,35 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
                   </div>
               </div>
           </div>
+      )}
+
+      {/* 7. Notification Modal for Truancy */}
+      {notificationTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setNotificationTarget(null)}>
+            <div className="bg-[#f2f2f7] w-full max-w-sm rounded-[20px] p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                <h3 className="text-center font-black text-gray-900 text-base mb-1">
+                    إبلاغ ولي الأمر
+                </h3>
+                <p className="text-center text-xs font-bold text-rose-500 mb-6">
+                    تم رصد تسرب للطالب: {notificationTarget.student.name}
+                </p>
+                
+                <div className="space-y-3">
+                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-green-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
+                        <MessageCircle className="w-5 h-5" />
+                        إرسال عبر واتساب
+                    </button>
+                    <button onClick={() => performNotification('sms')} className="w-full bg-white active:bg-gray-50 py-4 rounded-2xl text-blue-600 font-black text-sm flex items-center justify-center gap-2 shadow-sm">
+                        <CheckCircle2 className="w-5 h-5" />
+                        رسالة نصية SMS
+                    </button>
+                </div>
+                
+                <button onClick={() => setNotificationTarget(null)} className="w-full mt-3 bg-white active:bg-gray-50 py-3.5 rounded-xl text-gray-500 font-bold text-sm shadow-sm">
+                    إغلاق
+                </button>
+            </div>
+        </div>
       )}
 
     </div>
