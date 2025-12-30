@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { Student } from '../types';
 import { Trophy, Crown, ShoppingBag, Star, Shield, Zap, X, Filter, Search, Coins, Sparkles, CheckCircle2 } from 'lucide-react';
+import Modal from './Modal';
 
 interface GamificationHubProps {
   students: Student[];
@@ -177,77 +179,80 @@ const GamificationHub: React.FC<GamificationHubProps> = ({ students, classes, on
       )}
 
       {/* Student Store Modal */}
-      {showStore && selectedStudent && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowStore(false)}>
-              <div className="bg-white w-full max-w-lg h-[85vh] rounded-[2.5rem] shadow-2xl relative flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <Modal 
+        isOpen={showStore && !!selectedStudent} 
+        onClose={() => setShowStore(false)}
+        className="w-full max-w-lg h-[85vh] overflow-hidden p-0" // Custom style override
+      >
+          {selectedStudent && (
+            <>
+              {/* Modal Header */}
+              <div className="bg-gradient-to-b from-indigo-50 to-white p-6 pb-2 shrink-0">
+                  <div className="flex justify-between items-start mb-4">
+                      <button onClick={() => setShowStore(false)} className="p-2 bg-white rounded-full hover:bg-gray-100 shadow-sm"><X className="w-5 h-5 text-gray-500"/></button>
+                      <div className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full flex items-center gap-2 font-black text-sm shadow-sm">
+                          <span>{getBalance(selectedStudent)}</span>
+                          <Coins className="w-4 h-4 fill-amber-600" />
+                      </div>
+                  </div>
                   
-                  {/* Modal Header */}
-                  <div className="bg-gradient-to-b from-indigo-50 to-white p-6 pb-2 shrink-0">
-                      <div className="flex justify-between items-start mb-4">
-                          <button onClick={() => setShowStore(false)} className="p-2 bg-white rounded-full hover:bg-gray-100 shadow-sm"><X className="w-5 h-5 text-gray-500"/></button>
-                          <div className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full flex items-center gap-2 font-black text-sm shadow-sm">
-                              <span>{getBalance(selectedStudent)}</span>
-                              <Coins className="w-4 h-4 fill-amber-600" />
+                  <div className="flex items-center gap-4 mb-4">
+                      <div className="w-20 h-20 rounded-full bg-white border-4 border-indigo-100 shadow-md overflow-hidden shrink-0">
+                            <img src={getAvatarUrl(selectedStudent.id)} alt="avatar" className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                          <h2 className="text-xl font-black text-gray-900 leading-tight mb-1">{selectedStudent.name}</h2>
+                          <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${getLevel(getTotalPoints(selectedStudent)).bg} ${getLevel(getTotalPoints(selectedStudent)).color}`}>
+                                  {getLevel(getTotalPoints(selectedStudent)).name}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-bold">مجموع النقاط: {getTotalPoints(selectedStudent)}</span>
                           </div>
                       </div>
-                      
-                      <div className="flex items-center gap-4 mb-4">
-                          <div className="w-20 h-20 rounded-full bg-white border-4 border-indigo-100 shadow-md overflow-hidden shrink-0">
-                               <img src={getAvatarUrl(selectedStudent.id)} alt="avatar" className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                              <h2 className="text-xl font-black text-gray-900 leading-tight mb-1">{selectedStudent.name}</h2>
-                              <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${getLevel(getTotalPoints(selectedStudent)).bg} ${getLevel(getTotalPoints(selectedStudent)).color}`}>
-                                      {getLevel(getTotalPoints(selectedStudent)).name}
-                                  </span>
-                                  <span className="text-[10px] text-gray-400 font-bold">مجموع النقاط: {getTotalPoints(selectedStudent)}</span>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full" 
-                            style={{ width: `${Math.min(100, (getTotalPoints(selectedStudent) % 30) / 30 * 100)}%` }}
-                          ></div>
-                      </div>
-                      <p className="text-[9px] text-gray-400 text-left mt-1 font-bold">التقدم للمستوى التالي</p>
                   </div>
 
-                  {/* Store Content */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-2">
-                      <h3 className="font-black text-gray-800 text-sm mb-4 flex items-center gap-2">
-                          <ShoppingBag className="w-4 h-4 text-indigo-600" />
-                          متجر المكافآت
-                      </h3>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full" 
+                        style={{ width: `${Math.min(100, (getTotalPoints(selectedStudent) % 30) / 30 * 100)}%` }}
+                      ></div>
+                  </div>
+                  <p className="text-[9px] text-gray-400 text-left mt-1 font-bold">التقدم للمستوى التالي</p>
+              </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                          {REWARDS.map(reward => (
-                              <button 
-                                key={reward.id}
-                                onClick={() => handlePurchase(reward)}
-                                className={`relative p-4 rounded-2xl border-2 transition-all group flex flex-col items-center text-center ${reward.bg} border-transparent hover:border-indigo-200 active:scale-95`}
-                              >
-                                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{reward.icon}</div>
-                                  <h4 className="font-black text-gray-800 text-xs mb-1">{reward.title}</h4>
-                                  <div className="flex items-center gap-1 bg-white/60 px-2 py-1 rounded-lg">
-                                      <span className="font-black text-amber-600 text-xs">{reward.cost}</span>
-                                      <Coins className="w-3 h-3 text-amber-500 fill-amber-500" />
+              {/* Store Content */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-2">
+                  <h3 className="font-black text-gray-800 text-sm mb-4 flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-indigo-600" />
+                      متجر المكافآت
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                      {REWARDS.map(reward => (
+                          <button 
+                            key={reward.id}
+                            onClick={() => handlePurchase(reward)}
+                            className={`relative p-4 rounded-2xl border-2 transition-all group flex flex-col items-center text-center ${reward.bg} border-transparent hover:border-indigo-200 active:scale-95`}
+                          >
+                              <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{reward.icon}</div>
+                              <h4 className="font-black text-gray-800 text-xs mb-1">{reward.title}</h4>
+                              <div className="flex items-center gap-1 bg-white/60 px-2 py-1 rounded-lg">
+                                  <span className="font-black text-amber-600 text-xs">{reward.cost}</span>
+                                  <Coins className="w-3 h-3 text-amber-500 fill-amber-500" />
+                              </div>
+                              
+                              {getBalance(selectedStudent) >= reward.cost && (
+                                  <div className="absolute top-2 left-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-md">
+                                      <CheckCircle2 className="w-3 h-3" />
                                   </div>
-                                  
-                                  {getBalance(selectedStudent) >= reward.cost && (
-                                      <div className="absolute top-2 left-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-md">
-                                          <CheckCircle2 className="w-3 h-3" />
-                                      </div>
-                                  )}
-                              </button>
-                          ))}
-                      </div>
+                              )}
+                          </button>
+                      ))}
                   </div>
               </div>
-          </div>
-      )}
+            </>
+          )}
+      </Modal>
 
     </div>
   );
