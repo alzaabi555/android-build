@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense, useRef } from 'react';
+
+import React, { useState, useEffect, Suspense, useRef, ErrorInfo, ReactNode, Component } from 'react';
 import { Student, ScheduleDay, PeriodTime, Group } from './types';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
@@ -10,80 +11,96 @@ import NoorPlatform from './components/NoorPlatform';
 import GroupCompetition from './components/GroupCompetition';
 import UserGuide from './components/UserGuide';
 import BrandLogo from './components/BrandLogo';
-import { App as CapApp } from '@capacitor/app';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Share as SharePlugin } from '@capacitor/share';
-import { Capacitor } from '@capacitor/core';
+import Modal from './components/Modal';
+import { ThemeProvider, useTheme, ThemeMode } from './context/ThemeContext';
+import { AppProvider, useApp } from './context/AppContext';
+import { useSchoolBell } from './hooks/useSchoolBell';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { 
   Users, 
   CalendarCheck, 
   BarChart3, 
-  ChevronLeft,
-  GraduationCap,
-  CheckCircle2,
-  Info,
-  Database,
-  Trash2,
-  Phone,
-  Heart,
-  X,
-  Download,
-  Share,
-  Globe,
-  Upload,
-  AlertTriangle,
-  Bell,
-  RefreshCcw,
-  MapPin,
-  Trophy,
+  ChevronLeft, 
+  ChevronDown, 
+  CheckCircle2, 
+  Info, 
+  Trash2, 
+  X, 
+  Globe, 
+  AlertTriangle, 
+  Bell, 
+  Trophy, 
+  RotateCcw, 
+  Github, 
+  Save, 
+  FileUp, 
+  Sun, 
+  Moon, 
+  Smartphone, 
+  Layout, 
+  Palette, 
+  GraduationCap, 
+  Frown, 
+  Zap, 
+  BookOpen, 
+  Clock3, 
+  Ban, 
+  UserMinus, 
+  Utensils, 
+  Heart, 
+  Battery, 
+  ZapOff, 
+  MessageCircle, 
+  Code2,
   HelpCircle,
-  RotateCcw
+  User,
+  School,
+  MapPin,
+  ArrowRight
 } from 'lucide-react';
+import { Browser } from '@capacitor/browser';
 
+// Error Boundary
 interface ErrorBoundaryProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  errorMsg: string;
+  error: Error | null;
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
+  public state: ErrorBoundaryState = {
     hasError: false,
-    errorMsg: ''
+    error: null
   };
 
-  static getDerivedStateFromError(error: any): ErrorBoundaryState {
-    return { hasError: true, errorMsg: error.toString() };
+  // Explicitly declare props to fix TS error
+  public props: ErrorBoundaryProps;
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.props = props;
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error("App Error Boundary Caught:", error, errorInfo);
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-screen bg-slate-50 p-6 text-center" dir="rtl">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-xl max-w-sm border border-rose-100">
-             <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <AlertTriangle className="w-10 h-10 text-rose-500" />
-             </div>
-             <h2 className="text-xl font-black text-slate-800 mb-2">عذراً، حدث خطأ غير متوقع</h2>
-             <p className="text-sm text-slate-500 font-bold mb-6 leading-relaxed">
-               لا تقلق، بياناتك محفوظة. حدثت مشكلة تقنية بسيطة في عرض الواجهة.
-             </p>
-             <button 
-                onClick={() => window.location.reload()} 
-                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-             >
-                <RotateCcw className="w-4 h-4" /> إعادة تشغيل التطبيق
-             </button>
-             <p className="mt-4 text-[10px] text-gray-400 font-mono dir-ltr">{this.state.errorMsg.substring(0, 100)}</p>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-red-50 text-red-900 p-4 text-center" dir="rtl">
+          <div className="bg-red-100 p-4 rounded-full mb-4">
+            <AlertTriangle className="w-12 h-12 text-red-600" />
           </div>
+          <h1 className="text-2xl font-bold mb-2">عذراً، حدث خطأ غير متوقع</h1>
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">تحديث الصفحة</button>
         </div>
       );
     }
@@ -97,487 +114,155 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const styles = type === 'success' 
-    ? 'bg-emerald-500/90 text-white shadow-emerald-500/30' 
-    : type === 'error' 
-    ? 'bg-rose-500/90 text-white shadow-rose-500/30' 
-    : type === 'bell' 
-    ? 'bg-amber-500/90 text-white shadow-amber-500/30' 
-    : 'bg-indigo-600/90 text-white shadow-indigo-500/30';
+  const colors = {
+    success: 'bg-emerald-500/90 text-emerald-100',
+    error: 'bg-rose-500/90 text-rose-100',
+    bell: 'bg-amber-500/90 text-amber-100',
+    info: 'bg-blue-500/90 text-blue-100'
+  };
   
   const Icon = type === 'bell' ? Bell : (type === 'success' ? CheckCircle2 : (type === 'error' ? AlertTriangle : Info));
 
   return (
-    <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 ${styles} backdrop-blur-md px-6 py-3.5 rounded-full shadow-2xl z-[200] flex items-center gap-3 animate-in slide-in-from-top-6 duration-500 border border-white/20 max-w-[90vw]`}>
-      <div className="bg-white/20 p-1.5 rounded-full">
-         <Icon className="w-4 h-4" />
-      </div>
-      <span className="text-xs font-black tracking-wide">{message}</span>
+    <div className={`fixed top-6 left-1/2 -translate-x-1/2 ${colors[type]} backdrop-blur-sm border border-white/10 px-6 py-3.5 rounded-full shadow-lg z-[2000] flex items-center gap-3 max-w-[90vw] animate-in slide-in-from-top-2 fade-in duration-300`}>
+      <Icon className="w-4 h-4" />
+      <span className="text-xs font-bold tracking-wide">{message}</span>
     </div>
   );
 };
 
-const OMAN_GOVERNORATES = [
-  "مسقط",
-  "ظفار",
-  "مسندم",
-  "البريمي",
-  "الداخلية",
-  "شمال الباطنة",
-  "جنوب الباطنة",
-  "جنوب الشرقية",
-  "شمال الشرقية",
-  "الظاهرة",
-  "الوسطى"
-];
+const OMAN_GOVERNORATES = ["مسقط", "ظفار", "مسندم", "البريمي", "الداخلية", "شمال الباطنة", "جنوب الباطنة", "جنوب الشرقية", "شمال الشرقية", "الظاهرة", "الوسطى"];
 
-// --- Security & Obfuscation Layer ---
-const _SIG_N = "2YXYrdmF2K8g2K/YsdmI2YrYtCDYp9mE2LLYuNin2KjZig==";
-const _SIG_P = "OTgzNDQ1NTU=";
-
-const getCredits = () => {
-    try {
-        const n = decodeURIComponent(escape(window.atob(_SIG_N)));
-        const p = window.atob(_SIG_P);
-        return { name: n, phone: p };
-    } catch (e) {
-        return { name: "Error", phone: "" };
-    }
-};
-
-const verifyIntegrity = () => {
-    const c = getCredits();
-    const check = window.btoa(unescape(encodeURIComponent(c.name)));
-    return check === _SIG_N;
-};
+// Optimized Background Component
+const BackgroundOrbs = React.memo(({ isLowPower }: { isLowPower: boolean }) => {
+  if (isLowPower) return null; // Disable completely in low power mode
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 transform-gpu">
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 dark:bg-blue-600/20 blur-[100px] opacity-70 will-change-transform" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-purple-600/10 dark:bg-purple-600/20 blur-[80px] opacity-60 will-change-transform" />
+    </div>
+  );
+});
 
 const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
+  const { theme, setTheme, isLowPower, toggleLowPower } = useTheme();
   
-  useEffect(() => {
-      if (!verifyIntegrity()) {
-          document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#000;color:red;font-weight:bold;text-align:center;">Security Violation: Unauthorized Modification Detected.<br/>تم اكتشاف تعديل غير مصرح به في ملفات التطبيق.</div>';
-          throw new Error("Security Violation");
-      }
-  }, []);
+  // Optimized Styles - Only Ceramic (Light) and Vision (Dark)
+  const getThemeStyles = () => {
+    const blurClass = isLowPower ? '' : 'backdrop-blur-md';
+    const bgOpacity = isLowPower ? 'bg-white dark:bg-[#0f172a]' : 'bg-white/70 dark:bg-white/5';
+    const borderClass = isLowPower ? 'border-gray-200 dark:border-gray-800' : 'border-white/40 dark:border-white/10';
 
-  const [currentSemester, setCurrentSemester] = useState<'1' | '2'>(() => {
-     try {
-         const saved = localStorage.getItem('currentSemester');
-         return (saved === '1' || saved === '2') ? saved : '1';
-     } catch { return '1'; }
-  });
-
-  const [students, setStudents] = useState<Student[]>(() => {
-    try {
-      const saved = localStorage.getItem('studentData');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  const [classes, setClasses] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('classesData');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  const [groups, setGroups] = useState<Group[]>(() => {
-      try {
-          const saved = localStorage.getItem('groupsData');
-          if (saved) return JSON.parse(saved);
-          return [
-              { id: 'g1', name: 'الصقور', color: 'emerald' },
-              { id: 'g2', name: 'النمور', color: 'orange' },
-              { id: 'g3', name: 'النجوم', color: 'purple' },
-              { id: 'g4', name: 'الرواد', color: 'blue' },
-          ];
-      } catch { 
-          return [
-              { id: 'g1', name: 'الصقور', color: 'emerald' },
-              { id: 'g2', name: 'النمور', color: 'orange' },
-              { id: 'g3', name: 'النجوم', color: 'purple' },
-              { id: 'g4', name: 'الرواد', color: 'blue' },
-          ]; 
-      }
-  });
-
-  const [schedule, setSchedule] = useState<ScheduleDay[]>(() => {
-    const defaultSchedule = [
-      { dayName: 'الأحد', periods: Array(8).fill('') },
-      { dayName: 'الاثنين', periods: Array(8).fill('') },
-      { dayName: 'الثلاثاء', periods: Array(8).fill('') },
-      { dayName: 'الأربعاء', periods: Array(8).fill('') },
-      { dayName: 'الخميس', periods: Array(8).fill('') },
-    ];
-
-    try {
-      const saved = localStorage.getItem('scheduleData');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-            return parsed.map((day: any) => ({
-                ...day,
-                periods: Array.isArray(day.periods) 
-                    ? (day.periods.length === 8 
-                        ? day.periods 
-                        : [...day.periods, ...Array(Math.max(0, 8 - day.periods.length)).fill('')].slice(0, 8))
-                    : Array(8).fill('')
-            }));
-        }
-      }
-    } catch {}
-    return defaultSchedule;
-  });
-
-  const [periodTimes, setPeriodTimes] = useState<PeriodTime[]>(() => {
-    const defaultTimes = Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }));
-    try {
-      const saved = localStorage.getItem('periodTimes');
-      if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-              const merged = defaultTimes.map((def, i) => parsed[i] || def);
-              return merged;
-          }
-      }
-    } catch {}
-    return defaultTimes;
-  });
-
-  const [teacherInfo, setTeacherInfo] = useState(() => {
-    try {
-      return {
-        name: localStorage.getItem('teacherName') || '',
-        school: localStorage.getItem('schoolName') || '',
-        subject: localStorage.getItem('subjectName') || '',
-        governorate: localStorage.getItem('governorate') || ''
-      };
-    } catch {
-      return { name: '', school: '', subject: '', governorate: '' };
+    if (theme === 'ceramic') {
+        // Light Mode (iOS Style)
+        return {
+          sidebar: `${bgOpacity} ${blurClass} border ${borderClass} shadow-2xl rounded-[2rem]`,
+          activeNav: 'bg-white text-indigo-600 shadow-sm border border-gray-100 rounded-2xl',
+          inactiveNav: 'text-slate-500 hover:text-slate-900 rounded-2xl',
+          button: 'rounded-2xl',
+        };
+    } else {
+        // Dark Mode (Vision)
+        const visionBg = isLowPower ? 'bg-[#1e1e1e]' : 'bg-white/5';
+        return {
+          sidebar: `${visionBg} ${blurClass} border border-white/10 shadow-2xl rounded-[2rem]`,
+          activeNav: 'bg-white/10 text-white border border-white/10 rounded-2xl',
+          inactiveNav: 'text-white/50 hover:text-white rounded-2xl',
+          button: 'rounded-2xl',
+        };
     }
-  });
+  };
 
-  const [viewSheetUrl, setViewSheetUrl] = useState(() => {
-    try { return localStorage.getItem('viewSheetUrl') || ''; } catch { return ''; }
-  });
+  const themeStyles = getThemeStyles();
 
-  const [isSetupComplete, setIsSetupComplete] = useState(!!teacherInfo.name && !!teacherInfo.school);
+  const { 
+      students, setStudents, classes, setClasses, groups, setGroups, 
+      schedule, setSchedule, periodTimes, setPeriodTimes, 
+      teacherInfo, setTeacherInfo, currentSemester, setCurrentSemester 
+  } = useApp();
+
+  // Initialize Bell Hook
+  useSchoolBell(periodTimes, schedule);
+
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => localStorage.getItem('selectedStudentId') || null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error' | 'info' | 'bell'} | null>(null);
-
-  const bellAudioRef = useRef<HTMLAudioElement | null>(null);
-  const credits = getCredits();
+  const [isSetupComplete, setIsSetupComplete] = useState(!!teacherInfo.name && !!teacherInfo.school);
 
   useEffect(() => {
-    bellAudioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1085/1085-preview.mp3');
-  }, []);
+    localStorage.setItem('activeTab', activeTab);
+    if(selectedStudentId) localStorage.setItem('selectedStudentId', selectedStudentId);
+    else localStorage.removeItem('selectedStudentId');
+  }, [activeTab, selectedStudentId]);
 
-  useEffect(() => {
-    const setupAppStateListener = async () => {
-      try {
-        await CapApp.removeAllListeners(); 
-        await CapApp.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) {
-             // Optional: Refresh data or check time
-          }
-        });
-      } catch (e) {
-        console.error('Error setting up app state listener', e);
-      }
-    };
-    setupAppStateListener();
-  }, []);
-
-  useEffect(() => {
-      const checkTime = () => {
-          const now = new Date();
-          const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); 
-          const currentDay = now.getDay(); 
-
-          if (currentDay > 4) return;
-
-          periodTimes.forEach(p => {
-              if (p.startTime === currentTime || p.endTime === currentTime) {
-                   const type = p.startTime === currentTime ? 'بداية' : 'نهاية';
-                   setToast({ message: `حان موعد ${type} الحصة ${p.periodNumber}`, type: 'bell' });
-                   if (bellAudioRef.current) {
-                       bellAudioRef.current.play().catch(e => console.log('Audio play failed', e));
-                   }
-              }
-          });
-      };
-
-      const interval = setInterval(checkTime, 1000 * 30);
-      return () => clearInterval(interval);
-  }, [periodTimes]);
-
-  useEffect(() => {
-    const scheduleNotifications = async () => {
-        try {
-            const perm = await LocalNotifications.requestPermissions();
-            if (perm.display !== 'granted') return;
-
-            const pending = await LocalNotifications.getPending();
-            if (pending.notifications.length > 0) {
-                await LocalNotifications.cancel(pending);
-            }
-
-            const now = new Date();
-            const currentDay = now.getDay();
-            if (currentDay > 4) return;
-
-            const notifsToSchedule: any[] = [];
-            let idCounter = 1000;
-
-            const createDateFromTime = (timeStr: string, offsetMinutes: number) => {
-                if (!timeStr) return null;
-                const [h, m] = timeStr.split(':').map(Number);
-                const d = new Date();
-                d.setHours(h);
-                d.setMinutes(m + offsetMinutes);
-                d.setSeconds(0);
-                return d;
-            };
-
-            periodTimes.forEach(p => {
-                if (p.startTime) {
-                    const notifyTime = createDateFromTime(p.startTime, -5);
-                    if (notifyTime && notifyTime > now) {
-                        notifsToSchedule.push({
-                            id: idCounter++,
-                            title: 'تنبيه الحصص 🔔',
-                            body: `الحصة ${p.periodNumber} تبدأ بعد 5 دقائق`,
-                            schedule: { at: notifyTime },
-                            sound: 'beep.wav'
-                        });
-                    }
-                }
-
-                if (p.endTime) {
-                    const notifyTime = createDateFromTime(p.endTime, -5);
-                    if (notifyTime && notifyTime > now) {
-                         notifsToSchedule.push({
-                            id: idCounter++,
-                            title: 'تنبيه الحصص 🔔',
-                            body: `الحصة ${p.periodNumber} تنتهي بعد 5 دقائق`,
-                            schedule: { at: notifyTime },
-                            sound: 'beep.wav'
-                        });
-                    }
-                }
-            });
-
-            if (notifsToSchedule.length > 0) {
-                await LocalNotifications.schedule({ notifications: notifsToSchedule });
-            }
-
-        } catch (e) {
-            console.error('Error scheduling notifications:', e);
-        }
-    };
-
-    scheduleNotifications();
-  }, [periodTimes]);
-
-  useEffect(() => {
-    let backButtonListener: any;
-    const setupBackButton = async () => {
-      try {
-        backButtonListener = await CapApp.addListener('backButton', ({ canGoBack }) => {
-            if (showSettingsModal) {
-                setShowSettingsModal(false);
-            } else if (activeTab !== 'dashboard') {
-                setActiveTab('dashboard');
-            } else {
-                CapApp.exitApp();
-            }
-        });
-      } catch (e) {
-      }
-    };
-    setupBackButton();
-    return () => { if(backButtonListener) backButtonListener.remove(); };
-  }, [showSettingsModal, activeTab]);
-
-  useEffect(() => {
-    const saveData = () => {
-        try {
-            localStorage.setItem('studentData', JSON.stringify(students));
-            localStorage.setItem('classesData', JSON.stringify(classes));
-            localStorage.setItem('groupsData', JSON.stringify(groups));
-            localStorage.setItem('teacherName', teacherInfo.name);
-            localStorage.setItem('schoolName', teacherInfo.school);
-            localStorage.setItem('subjectName', teacherInfo.subject);
-            localStorage.setItem('governorate', teacherInfo.governorate);
-            localStorage.setItem('scheduleData', JSON.stringify(schedule));
-            localStorage.setItem('periodTimes', JSON.stringify(periodTimes));
-            localStorage.setItem('viewSheetUrl', viewSheetUrl);
-            localStorage.setItem('currentSemester', currentSemester);
-            localStorage.setItem('activeTab', activeTab);
-            if (selectedStudentId) {
-                localStorage.setItem('selectedStudentId', selectedStudentId);
-            } else {
-                localStorage.removeItem('selectedStudentId');
-            }
-        } catch (e) {
-            console.warn("Storage restricted", e);
-        }
-    };
-
-    saveData();
-
-    window.addEventListener('beforeunload', saveData);
-    return () => {
-        window.removeEventListener('beforeunload', saveData);
-    };
-  }, [students, classes, activeTab, teacherInfo, schedule, viewSheetUrl, currentSemester, periodTimes, groups, selectedStudentId]);
-
-  const handleUpdateStudent = (updatedStudent: Student) => {
-    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-  };
-
-  const handleDeleteStudent = (studentId: string) => {
-      setStudents(prev => prev.filter(s => s.id !== studentId));
-      setToast({ message: 'تم حذف الطالب بنجاح', type: 'success' });
-  };
-
+  const handleUpdateStudent = (updatedStudent: Student) => setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+  const handleDeleteStudent = (studentId: string) => { setStudents(prev => prev.filter(s => s.id !== studentId)); setToast({ message: 'تم حذف الطالب', type: 'success' }); };
   const handleAddStudentManually = (name: string, className: string, phone?: string, avatar?: string) => {
-    const newStudent: Student = {
-      id: Math.random().toString(36).substr(2, 9),
-      name,
-      grade: '',
-      classes: [className],
-      attendance: [],
-      behaviors: [],
-      grades: [],
-      parentPhone: phone,
-      avatar: avatar
-    };
-    setStudents(prev => [newStudent, ...prev]);
-    if (!classes.includes(className)) {
-      setClasses(prev => [...prev, className].sort());
-    }
+    setStudents(prev => [{ id: Math.random().toString(36).substr(2, 9), name, grade: '', classes: [className], attendance: [], behaviors: [], grades: [], parentPhone: phone, avatar }, ...prev]);
+    if (!classes.includes(className)) setClasses(prev => [...prev, className].sort());
   };
 
-  const handleClearAllData = () => {
-    if (confirm('هل أنت متأكد من رغبتك في حذف جميع بيانات الطلاب؟')) {
-      setStudents([]);
-      setClasses([]);
-      setToast({ message: 'تم حذف البيانات', type: 'success' });
-      setShowSettingsModal(false);
-    }
+  const handleBatchAddStudents = (newStudents: Student[]) => {
+      setStudents(prev => [...newStudents, ...prev]);
+      // Update classes list if new classes are introduced
+      const newClasses = new Set(classes);
+      newStudents.forEach(s => s.classes.forEach(c => newClasses.add(c)));
+      setClasses(Array.from(newClasses).sort());
+      setToast({ message: `تم إضافة ${newStudents.length} طالب بنجاح`, type: 'success' });
   };
 
   const handleEditClass = (oldName: string, newName: string) => {
       setClasses(prev => prev.map(c => c === oldName ? newName : c).sort());
-      setStudents(prev => prev.map(s => ({
-          ...s,
-          classes: s.classes.map(c => c === oldName ? newName : c)
-      })));
-      setToast({ message: 'تم تعديل اسم الفصل بنجاح', type: 'success' });
+      setStudents(prev => prev.map(s => ({ ...s, classes: s.classes.map(c => c === oldName ? newName : c) })));
   };
 
   const handleDeleteClass = (className: string) => {
       setClasses(prev => prev.filter(c => c !== className));
-      setStudents(prev => prev.map(s => ({
-          ...s,
-          classes: s.classes.filter(c => c !== className)
-      })));
-      setToast({ message: 'تم حذف الفصل', type: 'success' });
+      setStudents(prev => prev.map(s => ({ ...s, classes: s.classes.filter(c => c !== className) })));
   };
 
-  const handleBackupData = async (mode: 'share' | 'download') => {
-    try {
-      const dataToSave = { teacherInfo, students, classes, groups, schedule, periodTimes, exportDate: new Date().toISOString() };
-      const fileName = `madrasati_backup_${new Date().toISOString().split('T')[0]}.json`;
-      const jsonString = JSON.stringify(dataToSave, null, 2);
-
-      if (Capacitor.isNativePlatform()) {
-          try {
-              const result = await Filesystem.writeFile({
-                  path: fileName,
-                  data: jsonString,
-                  directory: Directory.Cache,
-                  encoding: Encoding.UTF8
-              });
-
-              await SharePlugin.share({
-                  title: 'نسخة احتياطية - راصد',
-                  url: result.uri,
-                  dialogTitle: mode === 'share' ? 'مشاركة عبر' : 'حفظ الملف'
-              });
-          } catch (e) {
-              setToast({ message: 'حدث خطأ أثناء العملية', type: 'error' });
-          }
-          return;
-      }
-
-      const file = new File([jsonString], fileName, { type: 'application/json' });
-
-      if (mode === 'share') {
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({
-                files: [file],
-                title: 'نسخة احتياطية',
-                text: 'ملف بيانات تطبيق راصد'
-              });
-              return; 
-            } catch (shareError) {
-              return;
-            }
-          } else {
-              setToast({ message: 'المشاركة المباشرة غير مدعومة في هذا المتصفح. استخدم زر التحميل.', type: 'info' });
-              return;
-          }
-      }
-
-      const url = URL.createObjectURL(file);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setToast({ message: 'تم تحميل ملف النسخة الاحتياطية', type: 'success' });
-
-    } catch (error) { setToast({ message: 'فشل إنشاء النسخة', type: 'error' }); }
+  const handleClearAllData = () => {
+    if (confirm('سيتم حذف جميع البيانات. هل أنت متأكد؟')) {
+      setStudents([]); setClasses([]); setToast({ message: 'تم الحذف', type: 'success' }); setShowSettingsModal(false);
+    }
   };
 
-  const handleRestoreData = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBackupData = () => {
+    const data = {
+      students, classes, groups, schedule, periodTimes, teacherInfo, currentSemester, timestamp: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `rased_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    setToast({ message: 'تم حفظ النسخة الاحتياطية', type: 'success' });
+  };
+
+  const handleRestoreData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!confirm('سيتم استبدال البيانات الحالية. هل أنت متأكد؟')) { if(e.target) e.target.value = ''; return; }
-
     const reader = new FileReader();
     reader.onload = (event) => {
-        try {
-            const json = JSON.parse(event.target?.result as string);
-            if (!json.students || !Array.isArray(json.students)) throw new Error('ملف غير صالح');
-            setTeacherInfo(json.teacherInfo || { name: '', school: '', subject: '', governorate: '' });
-            setStudents(json.students || []);
-            setClasses(json.classes || []);
-            setGroups(json.groups || []);
-            setSchedule(json.schedule || []);
-            if(json.periodTimes) setPeriodTimes(json.periodTimes);
-            setToast({ message: 'تم استعادة البيانات', type: 'success' });
-            setShowSettingsModal(false);
-        } catch (error) { setToast({ message: 'ملف غير صالح', type: 'error' }); }
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.students) setStudents(data.students);
+        if (data.classes) setClasses(data.classes);
+        if (data.groups) setGroups(data.groups);
+        if (data.schedule) setSchedule(data.schedule);
+        if (data.periodTimes) setPeriodTimes(data.periodTimes);
+        if (data.teacherInfo) setTeacherInfo(data.teacherInfo);
+        if (data.currentSemester) setCurrentSemester(data.currentSemester);
+        setToast({ message: 'تم استعادة البيانات بنجاح', type: 'success' });
+        setShowSettingsModal(false);
+      } catch (err) { console.error(err); setToast({ message: 'فشل في استعادة البيانات', type: 'error' }); }
     };
-    reader.readAsText(file);
-    if(e.target) e.target.value = '';
+    reader.readAsText(file); e.target.value = '';
   };
 
-  const handleStartApp = (e?: React.FormEvent) => {
-    if(e) e.preventDefault();
-    setIsSetupComplete(true);
-  };
-
-  const handleResetSetup = () => {
-    setTeacherInfo({ name: '', school: '', subject: '', governorate: '' });
+  const handleContactDeveloper = () => {
+    const phone = "96898344555"; 
+    Browser.open({ url: `https://wa.me/${phone}` });
   };
 
   const navItems = [
@@ -587,90 +272,111 @@ const AppContent: React.FC = () => {
     { id: 'grades', icon: GraduationCap, label: 'الدرجات' },
     { id: 'group-competition', icon: Trophy, label: 'الدوري' }, 
     { id: 'noor', icon: Globe, label: 'نور' },
-    { id: 'guide', icon: HelpCircle, label: 'الدليل' },
+    { id: 'guide', icon: BookOpen, label: 'الدليل' }, // Added Guide
   ];
+
+  const ThemeSwitcher = () => (
+    <div className={`p-1 rounded-2xl flex gap-1 mb-2 bg-gray-100/50 dark:bg-black/20`}>
+        <button onClick={() => setTheme('ceramic')} className={`flex-1 py-2 rounded-xl text-[9px] font-bold ${theme === 'ceramic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>نهاري</button>
+        <button onClick={() => setTheme('vision')} className={`flex-1 py-2 rounded-xl text-[9px] font-bold ${theme === 'vision' ? 'bg-black text-white shadow-sm' : 'text-slate-500'}`}>ليلي</button>
+    </div>
+  );
 
   if (!isSetupComplete) {
     return (
-      <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50 px-8 animate-in fade-in duration-700 overflow-auto" style={{direction: 'rtl'}}>
-        <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm border border-white/50">
-            <div className="mb-6 flex justify-center">
-               <div className="w-28 h-28 transform hover:scale-105 transition-transform duration-500">
-                   <BrandLogo className="w-full h-full" />
-               </div>
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-50 dark:bg-[#0f172a] px-6 transition-colors duration-500" dir="rtl">
+        <BackgroundOrbs isLowPower={isLowPower} />
+        
+        {/* Main Card */}
+        <div className="relative z-10 w-full max-w-sm bg-white/80 dark:bg-white/5 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/20 dark:border-white/10 shadow-2xl shadow-indigo-500/10 dark:shadow-black/50">
+            
+            {/* Logo Section */}
+            <div className="flex justify-center mb-8 relative">
+                <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full scale-150 animate-pulse"></div>
+                <div className="w-24 h-24 bg-white dark:bg-white/10 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-500/20 border border-white/50 dark:border-white/10 relative z-10">
+                    <BrandLogo className="w-16 h-16" showText={false} />
+                </div>
             </div>
 
-            <h1 className="text-3xl font-black text-slate-800 mb-2 text-center tracking-tight">مرحباً بك في راصد</h1>
-            <p className="text-sm text-slate-500 font-bold mb-8 text-center leading-relaxed">رفيقك الذكي لإدارة الفصل الدراسي باحترافية</p>
-            
-            <form onSubmit={handleStartApp} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 mr-2">اسم المعلم / المعلمة</label>
-                <input 
-                    type="text" 
-                    className="w-full bg-white/80 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none border border-transparent focus:border-indigo-500/30 focus:bg-white focus:shadow-lg focus:shadow-indigo-500/10 transition-all text-slate-800 placeholder:text-slate-300" 
-                    value={teacherInfo.name} 
-                    onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})}
-                    autoComplete="off"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 mr-2">المادة الدراسية</label>
-                <input 
-                    type="text" 
-                    className="w-full bg-white/80 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none border border-transparent focus:border-indigo-500/30 focus:bg-white focus:shadow-lg focus:shadow-indigo-500/10 transition-all text-slate-800 placeholder:text-slate-300" 
-                    placeholder="مثال: اللغة العربية"
-                    value={teacherInfo.subject} 
-                    onChange={(e) => setTeacherInfo({...teacherInfo, subject: e.target.value})}
-                    autoComplete="off"
-                />
-              </div>
-               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 mr-2">المحافظة التعليمية</label>
-                <div className="relative">
+            <div className="text-center mb-8">
+                <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">مرحباً بك في راصد</h1>
+                <p className="text-slate-500 dark:text-white/60 text-sm font-medium">قم بإعداد ملفك الشخصي للبدء</p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); setIsSetupComplete(true); }} className="space-y-4">
+                
+                {/* Name Input */}
+                <div className="relative group">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40 group-focus-within:text-indigo-500 transition-colors">
+                        <User className="w-5 h-5" />
+                    </div>
+                    <input 
+                        type="text" 
+                        className="w-full py-4 pr-12 pl-4 rounded-2xl bg-slate-50 dark:bg-black/20 border border-transparent focus:bg-white dark:focus:bg-white/5 focus:border-indigo-500/50 outline-none text-slate-900 dark:text-white font-bold text-sm placeholder:text-slate-400 transition-all shadow-sm focus:shadow-md" 
+                        value={teacherInfo.name} 
+                        onChange={(e) => setTeacherInfo({...teacherInfo, name: e.target.value})} 
+                        placeholder="الاسم الكريم" 
+                        required 
+                    />
+                </div>
+
+                {/* School Input */}
+                <div className="relative group">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40 group-focus-within:text-indigo-500 transition-colors">
+                        <School className="w-5 h-5" />
+                    </div>
+                    <input 
+                        type="text" 
+                        className="w-full py-4 pr-12 pl-4 rounded-2xl bg-slate-50 dark:bg-black/20 border border-transparent focus:bg-white dark:focus:bg-white/5 focus:border-indigo-500/50 outline-none text-slate-900 dark:text-white font-bold text-sm placeholder:text-slate-400 transition-all shadow-sm focus:shadow-md" 
+                        value={teacherInfo.school} 
+                        onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})} 
+                        placeholder="اسم المدرسة" 
+                        required 
+                    />
+                </div>
+
+                {/* Subject Input */}
+                <div className="relative group">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40 group-focus-within:text-indigo-500 transition-colors">
+                        <BookOpen className="w-5 h-5" />
+                    </div>
+                    <input 
+                        type="text" 
+                        className="w-full py-4 pr-12 pl-4 rounded-2xl bg-slate-50 dark:bg-black/20 border border-transparent focus:bg-white dark:focus:bg-white/5 focus:border-indigo-500/50 outline-none text-slate-900 dark:text-white font-bold text-sm placeholder:text-slate-400 transition-all shadow-sm focus:shadow-md" 
+                        value={teacherInfo.subject} 
+                        onChange={(e) => setTeacherInfo({...teacherInfo, subject: e.target.value})} 
+                        placeholder="المادة الدراسية" 
+                        required 
+                    />
+                </div>
+
+                {/* Governorate Select */}
+                <div className="relative group">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/40 group-focus-within:text-indigo-500 transition-colors pointer-events-none">
+                        <MapPin className="w-5 h-5" />
+                    </div>
                     <select 
-                        className="w-full bg-white/80 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none border border-transparent focus:border-indigo-500/30 focus:bg-white focus:shadow-lg focus:shadow-indigo-500/10 transition-all text-slate-800 appearance-none"
-                        value={teacherInfo.governorate}
-                        onChange={(e) => setTeacherInfo({...teacherInfo, governorate: e.target.value})}
+                        value={teacherInfo.governorate} 
+                        onChange={(e) => setTeacherInfo({...teacherInfo, governorate: e.target.value})} 
+                        className="w-full py-4 pr-12 pl-4 rounded-2xl bg-slate-50 dark:bg-black/20 border border-transparent focus:bg-white dark:focus:bg-white/5 focus:border-indigo-500/50 outline-none text-slate-900 dark:text-white font-bold text-sm appearance-none cursor-pointer transition-all shadow-sm focus:shadow-md" 
+                        required
                     >
-                        <option value="">اختر المحافظة...</option>
-                        {OMAN_GOVERNORATES.map(gov => (
-                            <option key={gov} value={gov}>{gov}</option>
-                        ))}
+                        <option value="" disabled>المحافظة التعليمية...</option>
+                        {OMAN_GOVERNORATES.map(g => <option key={g} value={g} className="text-slate-900">{g}</option>)}
                     </select>
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <MapPin className="w-4 h-4" />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <ChevronDown className="w-4 h-4" />
                     </div>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 mr-2">اسم المدرسة</label>
-                <input 
-                    type="text" 
-                    className="w-full bg-white/80 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none border border-transparent focus:border-indigo-500/30 focus:bg-white focus:shadow-lg focus:shadow-indigo-500/10 transition-all text-slate-800 placeholder:text-slate-300" 
-                    value={teacherInfo.school} 
-                    onChange={(e) => setTeacherInfo({...teacherInfo, school: e.target.value})}
-                    autoComplete="off"
-                />
-              </div>
 
-              <div className="flex gap-3 pt-4">
-                  <button 
-                    type="button"
-                    onClick={handleResetSetup}
-                    className="p-4 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-colors shadow-sm"
-                    title="إعادة تعيين"
-                  >
-                      <RefreshCcw className="w-5 h-5" />
-                  </button>
-                  <button 
+                {/* Submit Button */}
+                <button 
                     type="submit" 
-                    disabled={!teacherInfo.name || !teacherInfo.school} 
-                    className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 disabled:shadow-none transition-all"
-                  >
-                    بدء الاستخدام <CheckCircle2 className="w-5 h-5" />
-                  </button>
-              </div>
+                    className="w-full py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl font-black text-sm hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md transition-all flex items-center justify-center gap-2 mt-4 group"
+                >
+                    ابدأ رحلتك
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-[-4px] transition-transform" />
+                </button>
             </form>
         </div>
       </div>
@@ -678,224 +384,135 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 flex bg-transparent overflow-hidden select-none" style={{direction: 'rtl'}}>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    <MotionConfig reducedMotion={isLowPower ? "always" : "user"}>
+        <div className="fixed inset-0 flex bg-transparent overflow-hidden select-none text-slate-900 dark:text-white transition-colors duration-300" style={{direction: 'rtl'}}>
+        <BackgroundOrbs isLowPower={isLowPower} />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Floating Glass Sidebar (Desktop) */}
-      <aside className="hidden md:flex w-72 flex-col h-[calc(100vh-32px)] m-4 rounded-[2rem] bg-white/80 backdrop-blur-2xl border border-white/50 shadow-2xl shrink-0 z-50 overflow-hidden relative">
-         {/* Sidebar Header */}
-         <div className="p-8 flex flex-col items-center border-b border-gray-100/50">
-             <div className="w-24 h-24 mb-4 filter drop-shadow-xl hover:scale-105 transition-transform duration-500">
-               <BrandLogo className="w-full h-full" showText={false} />
-             </div>
-             <h2 className="text-xl font-black text-slate-800 tracking-tight">راصد</h2>
-             <p className="text-[10px] font-bold text-slate-400 mt-1">{teacherInfo.school}</p>
-         </div>
+        {/* Sidebar */}
+        <aside className={`hidden md:flex w-64 flex-col shrink-0 z-50 overflow-hidden relative transition-all duration-300 transform-gpu ${themeStyles.sidebar}`}>
+            <div className="p-6 flex flex-col items-center border-b border-gray-100/50 dark:border-white/5">
+                <div className="w-16 h-16 mb-3"><BrandLogo className="w-full h-full" showText={false} /></div>
+                <h2 className="text-lg font-black">راصد OS</h2>
+            </div>
+            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+                {navItems.map(item => (
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${activeTab === item.id ? themeStyles.activeNav : themeStyles.inactiveNav}`}>
+                    <item.icon className="w-5 h-5" /> <span className="text-sm font-bold">{item.label}</span>
+                </button>
+                ))}
+            </nav>
+            <div className={`p-4 border-t border-gray-100/50 dark:border-white/5`}>
+                <ThemeSwitcher />
+                <button onClick={() => setShowSettingsModal(true)} className={`w-full flex items-center gap-2 px-4 py-2 mt-2 text-slate-500 dark:text-white/50 hover:bg-white/20 transition-all rounded-xl`}><Info className="w-4 h-4" /><span className="text-xs font-bold">الإعدادات</span></button>
+            </div>
+        </aside>
 
-         {/* Nav Items */}
-         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar">
-            {navItems.map(item => (
-               <button
-                 key={item.id}
-                 onClick={() => setActiveTab(item.id)}
-                 className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 group ${
-                    activeTab === item.id 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 translate-x-1' 
-                    : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
-                 }`}
-               >
-                 <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${activeTab === item.id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-                 <span className="text-sm font-bold">{item.label}</span>
-               </button>
-            ))}
-         </nav>
-
-         {/* Footer Action */}
-         <div className="p-4 border-t border-gray-100/50 bg-white/30">
-             <button onClick={() => setShowSettingsModal(true)} className="w-full flex items-center gap-3 px-5 py-3 rounded-2xl text-slate-500 hover:bg-white hover:shadow-md transition-all">
-                <Info className="w-5 h-5" />
-                <span className="text-xs font-bold">حول التطبيق</span>
-             </button>
-         </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <main 
-          className="flex-1 overflow-y-auto pt-[var(--sat)] md:pt-4 px-4 md:px-6 scrollbar-thin scroll-smooth pb-[calc(90px+var(--sab))]"
-          style={{ overscrollBehaviorY: 'none' }}
-        >
-          <div className="max-w-full md:max-w-7xl mx-auto h-full pt-2 md:pt-4">
-            <Suspense fallback={
-                <div className="flex flex-col items-center justify-center h-96 gap-4">
-                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm font-bold text-gray-400">جاري التحميل...</p>
-                </div>
-            }>
-              {/* Apply page transition class wrapper */}
-              <div key={activeTab} className="page-enter-active">
-                  {activeTab === 'dashboard' && (
-                    <Dashboard 
-                      students={students} 
-                      teacherInfo={teacherInfo}
-                      onUpdateTeacherInfo={setTeacherInfo} 
-                      schedule={schedule}
-                      onUpdateSchedule={setSchedule}
-                      onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} 
-                      onNavigate={(tab) => setActiveTab(tab)}
-                      onOpenSettings={() => setShowSettingsModal(true)}
-                      periodTimes={periodTimes}
-                      setPeriodTimes={setPeriodTimes}
-                    />
-                  )}
-                  {activeTab === 'students' && (
-                    <StudentList 
-                      students={students} 
-                      classes={classes} 
-                      onAddClass={(c) => setClasses(prev => [...prev, c].sort())} 
-                      onAddStudentManually={handleAddStudentManually} 
-                      onUpdateStudent={handleUpdateStudent} 
-                      onDeleteStudent={handleDeleteStudent}
-                      onViewReport={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }}
-                      onSwitchToImport={() => setActiveTab('import')}
-                      currentSemester={currentSemester}
-                      onSemesterChange={setCurrentSemester}
-                      onEditClass={handleEditClass}
-                      onDeleteClass={handleDeleteClass}
-                    />
-                  )}
-                  {activeTab === 'attendance' && <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />}
-                  {activeTab === 'grades' && (
-                    <GradeBook 
-                      students={students} 
-                      classes={classes} 
-                      onUpdateStudent={handleUpdateStudent}
-                      setStudents={setStudents}
-                      currentSemester={currentSemester}
-                      onSemesterChange={setCurrentSemester}
-                      teacherInfo={teacherInfo}
-                    />
-                  )}
-                   {activeTab === 'group-competition' && (
-                    <GroupCompetition 
-                      students={students}
-                      classes={classes}
-                      onUpdateStudent={handleUpdateStudent}
-                      groups={groups}
-                      onUpdateGroups={setGroups}
-                      setStudents={setStudents}
-                    />
-                  )}
-
-                  {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
-                  {activeTab === 'noor' && <NoorPlatform />}
-                  {activeTab === 'guide' && <UserGuide />}
-                  {activeTab === 'report' && selectedStudentId && (
-                    <div className="max-w-4xl mx-auto">
-                      <button onClick={() => setActiveTab('students')} className="mb-4 flex items-center gap-2 text-indigo-600 font-bold text-xs bg-white/80 backdrop-blur px-4 py-2 rounded-full hover:bg-white transition-all shadow-sm"><ChevronLeft className="w-4 h-4" /> العودة للقائمة</button>
-                      <StudentReport 
-                        student={students.find(s => s.id === selectedStudentId)!} 
-                        onUpdateStudent={handleUpdateStudent} 
-                        currentSemester={currentSemester}
-                        teacherInfo={teacherInfo}
-                      />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative z-10 transform-gpu">
+            <main className="flex-1 overflow-y-auto pt-[var(--sat)] md:pt-4 px-3 md:px-6 scrollbar-thin pb-[calc(90px+var(--sab))]" style={{ overscrollBehaviorY: 'none' }}>
+            <div className="max-w-full md:max-w-7xl mx-auto h-full pt-2 md:pt-4">
+                <Suspense fallback={<div className="flex justify-center pt-20"><div className="w-8 h-8 border-4 border-indigo-500 rounded-full animate-spin border-t-transparent"></div></div>}>
+                    <div className={isLowPower ? '' : 'animate-in fade-in duration-300'}>
+                        {activeTab === 'dashboard' && <Dashboard students={students} teacherInfo={teacherInfo} onUpdateTeacherInfo={setTeacherInfo} schedule={schedule} onUpdateSchedule={setSchedule} onSelectStudent={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} onNavigate={(tab) => setActiveTab(tab)} onOpenSettings={() => setShowSettingsModal(true)} periodTimes={periodTimes} setPeriodTimes={setPeriodTimes} />}
+                        {activeTab === 'students' && <StudentList students={students} classes={classes} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} onAddStudentManually={handleAddStudentManually} onBatchAddStudents={handleBatchAddStudents} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onViewReport={(s) => { setSelectedStudentId(s.id); setActiveTab('report'); }} onSwitchToImport={() => setActiveTab('import')} currentSemester={currentSemester} onSemesterChange={setCurrentSemester} onEditClass={handleEditClass} onDeleteClass={handleDeleteClass} />}
+                        {activeTab === 'attendance' && <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />}
+                        {activeTab === 'grades' && <GradeBook students={students} classes={classes} onUpdateStudent={handleUpdateStudent} setStudents={setStudents} currentSemester={currentSemester} onSemesterChange={setCurrentSemester} teacherInfo={teacherInfo} />}
+                        {activeTab === 'group-competition' && <GroupCompetition students={students} classes={classes} onUpdateStudent={handleUpdateStudent} groups={groups} onUpdateGroups={setGroups} setStudents={setStudents} />}
+                        {activeTab === 'import' && <ExcelImport existingClasses={classes} onImport={(ns) => { setStudents(prev => [...prev, ...ns]); setActiveTab('students'); }} onAddClass={(c) => setClasses(prev => [...prev, c].sort())} />}
+                        {activeTab === 'noor' && <NoorPlatform />}
+                        {activeTab === 'guide' && <UserGuide />}
+                        {activeTab === 'report' && selectedStudentId && <div className="max-w-4xl mx-auto"><button onClick={() => setActiveTab('students')} className={`mb-4 flex items-center gap-2 text-slate-500 font-bold text-xs bg-white/60 dark:bg-white/10 px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-white dark:hover:bg-white/20`}><ChevronLeft className="w-4 h-4" /> العودة</button><StudentReport student={students.find(s => s.id === selectedStudentId)!} onUpdateStudent={handleUpdateStudent} currentSemester={currentSemester} teacherInfo={teacherInfo} /></div>}
                     </div>
-                  )}
-              </div>
-            </Suspense>
-          </div>
-        </main>
-
-        {/* Mobile Bottom Navigation (Glassmorphism) */}
-        <nav 
-          className="md:hidden fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-2xl border border-white/20 z-50 shadow-2xl shadow-indigo-900/10 rounded-[2rem] h-16 flex items-center justify-around px-2"
-        >
-            {navItems.map(item => (
-              <button 
-                key={item.id} 
-                onClick={() => setActiveTab(item.id)} 
-                className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-90 ${activeTab === item.id ? 'text-indigo-600' : 'text-slate-400'}`}
-              >
-                <div className={`p-1.5 rounded-xl transition-all ${activeTab === item.id ? 'bg-indigo-50 translate-y-[-2px]' : ''}`}>
-                    <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'fill-indigo-600/20 stroke-[2.5px]' : 'stroke-2'}`} />
-                </div>
-              </button>
-            ))}
-        </nav>
-      </div>
-
-      {/* Settings Modal - CENTERED */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowSettingsModal(false)}>
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-             {/* Modal Header */}
-             <div className="p-6 pb-2">
-                 <div className="flex justify-between items-start mb-4">
-                     <div>
-                         <h2 className="text-xl font-black text-gray-900">الإعدادات</h2>
-                         <p className="text-xs text-gray-500 font-bold">تخصيص التطبيق والبيانات</p>
-                     </div>
-                     <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X className="w-5 h-5 text-gray-500"/></button>
-                 </div>
-             </div>
-
-             {/* Modal Body */}
-             <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6 space-y-4">
-                 
-                 <div className="bg-indigo-50 p-4 rounded-2xl flex items-center gap-4">
-                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                         <BrandLogo className="w-8 h-8" showText={false} />
-                     </div>
-                     <div>
-                         <h3 className="font-black text-indigo-900 text-sm">راصد التعليمي</h3>
-                         <p className="text-[10px] font-bold text-indigo-600">الإصدار 3.3</p>
-                     </div>
-                 </div>
-
-                 <div className="space-y-2">
-                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider">النسخ الاحتياطي</h4>
-                     <button onClick={() => handleBackupData('download')} className="w-full flex items-center gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
-                         <Download className="w-5 h-5 text-gray-600" />
-                         <span className="text-xs font-bold text-gray-700">تحميل نسخة احتياطية</span>
-                     </button>
-                     <button onClick={() => handleBackupData('share')} className="w-full flex items-center gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
-                         <Share className="w-5 h-5 text-gray-600" />
-                         <span className="text-xs font-bold text-gray-700">مشاركة نسخة احتياطية</span>
-                     </button>
-                     <label className="w-full flex items-center gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors cursor-pointer relative">
-                         <Upload className="w-5 h-5 text-gray-600" />
-                         <span className="text-xs font-bold text-gray-700">استعادة نسخة احتياطية</span>
-                         <input type="file" accept=".json" onChange={handleRestoreData} className="absolute inset-0 opacity-0 cursor-pointer" />
-                     </label>
-                 </div>
-
-                 <div className="space-y-2">
-                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-wider">منطقة الخطر</h4>
-                     <button onClick={handleClearAllData} className="w-full flex items-center gap-3 p-4 bg-rose-50 rounded-2xl hover:bg-rose-100 transition-colors">
-                         <Trash2 className="w-5 h-5 text-rose-500" />
-                         <span className="text-xs font-bold text-rose-600">حذف جميع البيانات</span>
-                     </button>
-                 </div>
-                 
-                 <div className="pt-4 border-t border-gray-100 text-center">
-                    <p className="text-[10px] text-gray-400 font-bold mb-1">تم التطوير بواسطة</p>
-                    <p className="text-xs font-black text-gray-600">{credits.name}</p>
-                    {credits.phone && <p className="text-[10px] font-mono text-gray-400 mt-1" dir="ltr">{credits.phone}</p>}
-                 </div>
-             </div>
-          </div>
+                </Suspense>
+            </div>
+            </main>
+            
+            {/* Mobile Dock */}
+            <nav className={`md:hidden fixed bottom-6 left-4 right-4 bg-white/90 dark:bg-slate-900/95 ${isLowPower ? '' : 'backdrop-blur-lg'} border border-gray-200 dark:border-white/10 z-50 shadow-xl rounded-[2rem] h-16 flex items-center justify-around px-2`}>
+                {navItems.slice(0, 5).map(item => (
+                <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex flex-col items-center justify-center w-full h-full relative ${activeTab === item.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                    <item.icon className="w-6 h-6" />
+                    {activeTab === item.id && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-current" />}
+                </button>
+                ))}
+                <button onClick={() => setActiveTab('guide')} className={`flex flex-col items-center justify-center w-full h-full relative ${activeTab === 'guide' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                    <BookOpen className="w-6 h-6" />
+                    {activeTab === 'guide' && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-current" />}
+                </button>
+            </nav>
         </div>
-      )}
-    </div>
+
+        {/* Settings Modal */}
+        <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)}>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-black text-lg">الإعدادات</h3>
+                <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-100 dark:bg-white/10 rounded-full hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="space-y-4">
+                <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl">
+                    <label className="text-xs font-bold text-gray-500 mb-2 block">المظهر</label>
+                    <ThemeSwitcher />
+                </div>
+
+                {/* PERFORMANCE TOGGLE */}
+                <button onClick={toggleLowPower} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-colors ${isLowPower ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-gray-50 dark:bg-white/5 border-transparent text-gray-700 dark:text-white'}`}>
+                    <div className="flex items-center gap-3 text-right">
+                        <div className={`p-2 rounded-full ${isLowPower ? 'bg-emerald-100 dark:bg-emerald-800' : 'bg-gray-200 dark:bg-white/10'}`}>
+                            {isLowPower ? <Battery className="w-5 h-5" /> : <ZapOff className="w-5 h-5" />}
+                        </div>
+                        <div>
+                            <span className="block text-sm font-black">تقليل المؤثرات البصرية</span>
+                            <span className="block text-[10px] font-bold opacity-70">للأجهزة القديمة: يوقف الشفافية والحركة</span>
+                        </div>
+                    </div>
+                    <div className={`w-10 h-6 rounded-full relative transition-colors ${isLowPower ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isLowPower ? 'left-5' : 'left-1'}`} />
+                    </div>
+                </button>
+
+                <div className="h-px bg-gray-200 dark:bg-white/10 my-2"></div>
+
+                <button onClick={handleBackupData} className="w-full flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20 rounded-2xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"><Save className="w-4 h-4" /> حفظ نسخة احتياطية</button>
+                <label className="w-full flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20 rounded-2xl font-bold text-xs cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"><FileUp className="w-4 h-4" /> استعادة بيانات <input type="file" accept=".json" className="hidden" onChange={handleRestoreData} /></label>
+                <button onClick={handleClearAllData} className="w-full flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/20 rounded-2xl font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors"><Trash2 className="w-4 h-4" /> حذف كافة البيانات</button>
+                
+                <div className="h-px bg-gray-200 dark:bg-white/10 my-2"></div>
+
+                {/* About Developer Section */}
+                <div className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-500/10 dark:to-blue-500/10 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 text-center">
+                    <div className="w-12 h-12 bg-white dark:bg-white/10 rounded-2xl mx-auto mb-3 flex items-center justify-center shadow-sm">
+                        <Code2 className="w-6 h-6 text-indigo-500 dark:text-indigo-300" />
+                    </div>
+                    <h4 className="text-xs font-black text-indigo-900 dark:text-indigo-200 mb-1">حول المطور</h4>
+                    <p className="text-[10px] font-bold text-slate-500 dark:text-white/60 mb-3">تصميم وتطوير: محمد درويش الزعابي</p>
+                    <button 
+                        onClick={handleContactDeveloper}
+                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-500/20"
+                    >
+                        <MessageCircle className="w-4 h-4" />
+                        تواصل مع المطور (واتساب)
+                    </button>
+                </div>
+                <div className="text-center">
+                    <p className="text-[9px] text-slate-300 dark:text-white/20 font-mono mt-2">Version 3.4.0 (Performance Update)</p>
+                </div>
+            </div>
+        </Modal>
+        </div>
+    </MotionConfig>
   );
 };
 
-const App: React.FC = () => {
-    return (
-        <ErrorBoundary>
-            <AppContent />
-        </ErrorBoundary>
-    );
-};
+const App: React.FC = () => (
+  <ThemeProvider>
+    <AppProvider>
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
+    </AppProvider>
+  </ThemeProvider>
+);
 
 export default App;
