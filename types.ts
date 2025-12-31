@@ -58,6 +58,12 @@ export interface PeriodTime {
   endTime: string;   
 }
 
+export interface AssessmentTool {
+    id: string;
+    name: string;
+    maxScore: number;
+}
+
 export interface AppState {
   students: Student[];
   selectedStudentId: string | null;
