@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceStatus } from '../types';
 import { Check, X, Clock, Calendar, Filter, MessageCircle, ChevronDown, CheckCircle2, RotateCcw, Search, Printer, Loader2, CalendarRange, UserCircle2, Share2, Download, FileSpreadsheet } from 'lucide-react';
@@ -129,17 +130,18 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       const msg = encodeURIComponent(`السلام عليكم، نود إشعاركم بأن الطالب ${student.name} تم تسجيله *${statusText}* اليوم (${dateText}).`);
       
       if (method === 'whatsapp') {
-          const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
-          const webUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+          // Use Universal Link (https://api.whatsapp.com)
+          // This is safest and most robust method across iOS/Android
+          const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
           
-          if (Capacitor.isNativePlatform()) {
-              try {
-                  await Browser.open({ url: appUrl });
-              } catch (e) {
-                  await Browser.open({ url: webUrl });
+          try {
+              if (Capacitor.isNativePlatform()) {
+                  await Browser.open({ url: universalUrl });
+              } else {
+                  window.open(universalUrl, '_blank');
               }
-          } else {
-              window.open(webUrl, '_blank');
+          } catch (e) {
+              window.open(universalUrl, '_blank');
           }
       } else {
           window.location.href = `sms:${cleanPhone}?body=${msg}`;

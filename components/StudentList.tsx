@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Student, BehaviorType } from '../types';
 import { Search, ThumbsUp, ThumbsDown, X, UserPlus, Edit2, FileSpreadsheet, Sparkles, Shuffle, Trash2, CheckCircle2, MessageCircle, Plus, UploadCloud, UserX, Image as ImageIcon, PhoneOff, AlertCircle, FileUp, User, Camera, Printer, Loader2, Star } from 'lucide-react';
@@ -387,7 +388,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       
       const { student } = notificationTarget;
       
-      // Clean phone number (Identical logic to AttendanceTracker for consistency)
+      // Clean phone number (Robust Oman Format)
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       
       if (!cleanPhone || cleanPhone.length < 5) {
@@ -395,8 +396,8 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
           return;
       }
       
+      // Normalize Oman Number
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
-      
       if (cleanPhone.length === 8) {
           cleanPhone = '968' + cleanPhone;
       } else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) {
@@ -406,17 +407,18 @@ const StudentList: React.FC<StudentListProps> = ({ students, classes, onAddClass
       const msg = encodeURIComponent(`السلام عليكم، نود إبلاغكم بأن الطالب ${student.name} قد تسرب من الحصة.`);
       
       if (method === 'whatsapp') {
-          const appUrl = `whatsapp://send?phone=${cleanPhone}&text=${msg}`;
-          const webUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+          // Use Universal Link (https://api.whatsapp.com)
+          // This is the most reliable way on iOS/Android to open the app via system handling
+          const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
           
-          if (Capacitor.isNativePlatform()) {
-              try {
-                  await Browser.open({ url: appUrl });
-              } catch (e) {
-                  await Browser.open({ url: webUrl });
+          try {
+              if (Capacitor.isNativePlatform()) {
+                  await Browser.open({ url: universalUrl });
+              } else {
+                  window.open(universalUrl, '_blank');
               }
-          } else {
-              window.open(webUrl, '_blank');
+          } catch (e) {
+              window.open(universalUrl, '_blank');
           }
       } else {
           window.location.href = `sms:${cleanPhone}?body=${msg}`;

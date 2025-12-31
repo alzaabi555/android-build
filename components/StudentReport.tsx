@@ -407,16 +407,17 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       
       const msg = encodeURIComponent(`السلام عليكم، مرفق لكم تقرير الطالب ${student.name}.`);
       
-      const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+      // Use Universal Link
+      const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
       
       if (Capacitor.isNativePlatform()) {
           try {
-              await Browser.open({ url: `whatsapp://send?phone=${cleanPhone}&text=${msg}` });
+              await Browser.open({ url: universalUrl });
           } catch {
-              await Browser.open({ url });
+              window.open(universalUrl, '_blank');
           }
       } else {
-          window.open(url, '_blank');
+          window.open(universalUrl, '_blank');
       }
   };
 
