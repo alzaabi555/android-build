@@ -30,13 +30,19 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Add and Sync Android Platform
+      - name: Setup Android Platform (Force Recreate)
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          else
-            echo "Android folder exists, syncing..."
-          fi
+          # تنظيف جذري: حذف مجلد android تماماً إذا كان موجوداً
+          # هذا يضمن أن يقوم Capacitor بإنشاء نسخة جديدة وسليمة تحتوي على gradlew
+          echo "Removing existing android directory to force fresh generation..."
+          rm -rf android
+
+          # إضافة منصة أندرويد من الصفر
+          echo "Adding Android platform..."
+          npx cap add android
+          
+          # مزامنة ملفات الويب
+          echo "Syncing Capacitor..."
           npx cap sync android
 
       - name: Generate App Icons
@@ -45,11 +51,12 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
+          # الآن يجب أن يكون gradlew موجوداً لأننا أعدنا إنشاء المجلد
           if [ -f "gradlew" ]; then
             chmod +x gradlew
             ./gradlew assembleDebug
           else
-            echo "Gradlew not found. Attempting to use system gradle..."
+            echo "Warning: Gradlew still not found despite recreation. Using system gradle..."
             gradle assembleDebug
           fi
 
