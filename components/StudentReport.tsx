@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
 import { Student, GradeRecord } from '../types';
-import { Award, AlertCircle, MessageCircle, PhoneCall, Trash2, Loader2, Mail, UserCheck, FileText, Medal, XCircle, Calculator } from 'lucide-react';
+import { Award, AlertCircle, MessageCircle, PhoneCall, Trash2, Loader2, Mail, UserCheck, FileText, Medal, Calculator, FileWarning, GraduationCap, LayoutList } from 'lucide-react';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { useApp } from '../context/AppContext';
 
 declare var html2pdf: any;
 
@@ -17,8 +18,8 @@ interface StudentReportProps {
 }
 
 const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent, currentSemester, teacherInfo }) => {
+  const { assessmentTools } = useApp();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [generatingSummonsId, setGeneratingSummonsId] = useState<string | null>(null);
   
   const behaviors = (student.behaviors || []).filter(b => !b.semester || b.semester === (currentSemester || '1'));
   const allGrades = student.grades || [];
@@ -26,53 +27,42 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
   const totalPositivePoints = behaviors.filter(b => b.type === 'positive').reduce((acc, b) => acc + b.points, 0);
   const totalNegativePoints = behaviors.filter(b => b.type === 'negative').reduce((acc, b) => acc + Math.abs(b.points), 0);
 
-  // --- Statistics Calculation (Fixed Cumulative Logic: Sem 1 + Sem 2) ---
   const sem1Grades = allGrades.filter(g => !g.semester || g.semester === '1');
   const sem2Grades = allGrades.filter(g => g.semester === '2');
 
+  // Grades for CURRENT selected semester (for display list)
+  const currentSemesterGrades = currentSemester === '2' ? sem2Grades : sem1Grades;
+
   const calcStats = (grades: GradeRecord[]) => {
-      const score = grades.reduce((acc, g) => acc + (Number(g.score) || 0), 0);
-      const max = grades.reduce((acc, g) => acc + (Number(g.maxScore) || 0), 0);
-      return { score, max };
+      let score = 0;
+      grades.forEach(g => {
+          score += Number(g.score) || 0;
+      });
+      return { score };
   };
 
   const sem1Stats = calcStats(sem1Grades);
   const sem2Stats = calcStats(sem2Grades);
 
-  // Cumulative Total (Sem 1 + Sem 2)
+  // Cumulative Total
   const finalScore = sem1Stats.score + sem2Stats.score;
-  const finalMax = sem1Stats.max + sem2Stats.max;
-  
-  // Calculate Percentage based on Cumulative Total - GUARD AGAINST NaN
-  const finalPercentage = finalMax > 0 ? Math.round((finalScore / finalMax) * 100) : 0;
 
-  // --- Official Grading Scale (90, 80, 65, 50) ---
-  const getGradeSymbol = (percentage: number, maxScore: number) => {
-    if (maxScore === 0) return { symbol: '-', desc: '-', color: 'text-slate-400 dark:text-white/40' };
-    
-    // Official Scale Logic
-    if (percentage >= 90) return { symbol: 'أ', desc: 'ممتاز', color: 'text-emerald-600 dark:text-emerald-400' };
-    if (percentage >= 80) return { symbol: 'ب', desc: 'جيد جداً', color: 'text-blue-600 dark:text-blue-400' };
-    if (percentage >= 65) return { symbol: 'ج', desc: 'جيد', color: 'text-indigo-600 dark:text-indigo-400' };
-    if (percentage >= 50) return { symbol: 'د', desc: 'مقبول', color: 'text-amber-600 dark:text-amber-400' };
-    return { symbol: 'هـ', desc: 'يحتاج مساعدة', color: 'text-rose-600 dark:text-rose-400' };
+  // --- Grade Symbol Logic ---
+  const getGradeSymbol = (score: number) => {
+      if (score >= 90) return 'أ';
+      if (score >= 80) return 'ب';
+      if (score >= 65) return 'ج';
+      if (score >= 50) return 'د';
+      return 'هـ';
   };
 
-  const finalSymbol = getGradeSymbol(finalPercentage, finalMax);
-  
-  // Calculate Semester specific symbols for display
-  const sem1Percentage = sem1Stats.max > 0 ? Math.round((sem1Stats.score / sem1Stats.max) * 100) : 0;
-  const sem1Symbol = getGradeSymbol(sem1Percentage, sem1Stats.max);
-
-  const sem2Percentage = sem2Stats.max > 0 ? Math.round((sem2Stats.score / sem2Stats.max) * 100) : 0;
-  const sem2Symbol = getGradeSymbol(sem2Percentage, sem2Stats.max);
-
-  // --- Summons Logic ---
-  const lowGradesForSummons = allGrades.filter(g => {
-    const isExam = g.category.includes('اختبار'); 
-    const isFailing = g.score < (g.maxScore / 2);
-    return isExam && isFailing;
-  });
+  const getSymbolColor = (score: number) => {
+      if (score >= 90) return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/20';
+      if (score >= 80) return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/20';
+      if (score >= 65) return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/20';
+      if (score >= 50) return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/20';
+      return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/20';
+  };
 
   const handleDeleteBehavior = (behaviorId: string) => {
       if (confirm('هل أنت متأكد من حذف هذا السلوك؟')) {
@@ -205,122 +195,197 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       exportPDF(element, `شهادة_تفوق_${student.name}.pdf`, setIsGeneratingPdf, 'landscape');
   };
 
+  const handleGenerateSummons = async () => {
+      setIsGeneratingPdf(true);
+      const schoolName = teacherInfo?.school || '...................';
+      const teacherName = teacherInfo?.name || '...................';
+      const governorate = teacherInfo?.governorate || '...............';
+      let emblemSrc = await getBase64Image('oman_logo.png') || await getBase64Image('icon.png');
+
+      const element = document.createElement('div');
+      element.setAttribute('dir', 'rtl');
+      element.style.fontFamily = 'Amiri, serif'; 
+      element.style.padding = '0';
+      element.style.width = '210mm';
+      element.style.height = '297mm';
+      element.style.backgroundColor = '#fff';
+      
+      const date = new Date().toLocaleDateString('ar-EG');
+
+      element.innerHTML = `
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
+            .page-container { padding: 20mm; color: #000; font-family: 'Amiri', serif; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+            .logo { height: 70px; margin-bottom: 10px; }
+            .ministry { font-size: 14px; font-weight: bold; line-height: 1.6; }
+            .title { text-align: center; font-size: 24px; font-weight: bold; margin: 30px 0; text-decoration: underline; }
+            .content { font-size: 18px; line-height: 2.2; text-align: justify; margin-bottom: 50px; }
+            .footer { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 20px; }
+            .sign-box { text-align: center; width: 200px; }
+            .bold { font-weight: bold; }
+            .dashed { border-bottom: 1px dashed #000; display: inline-block; min-width: 150px; text-align: center; }
+        </style>
+        <div class="page-container">
+            <div class="header">
+                ${emblemSrc ? `<img src="${emblemSrc}" class="logo" />` : ''}
+                <div class="ministry">سلطنة عمان<br/>وزارة التربية والتعليم<br/>المديرية العامة للتربية والتعليم لمحافظة ${governorate}<br/>مدرسة ${schoolName}</div>
+            </div>
+            
+            <div class="title">استدعاء ولي أمر طالب</div>
+            
+            <div class="content">
+                <p>
+                    المكرم ولي أمر الطالب / <span class="bold">${student.name}</span> المحترم<br/>
+                    بالصف: <span class="bold">${student.classes[0] || '....'}</span>
+                </p>
+                <p>السلام عليكم ورحمة الله وبركاته،،،</p>
+                <p>
+                    نرجو تكرمكم بالحضور إلى المدرسة يوم ............... الموافق ...../...../..........م
+                    الساعة ............... صباحاً.
+                </p>
+                <p>
+                    وذلك لمقابلة إدارة المدرسة / معلم المادة لمناقشة:
+                    <br/>
+                    ( &nbsp;&nbsp; ) المستوى التحصيلي للطالب.
+                    <br/>
+                    ( &nbsp;&nbsp; ) المستوى السلوكي للطالب.
+                    <br/>
+                    ( &nbsp;&nbsp; ) أسباب غياب الطالب المتكرر.
+                    <br/>
+                    ( &nbsp;&nbsp; ) أخرى: ............................................................
+                </p>
+                <p>شاكرين لكم حسن تعاونكم واهتمامكم لما فيه مصلحة الطالب.</p>
+            </div>
+
+            <div class="footer">
+                <div class="sign-box">
+                    <p class="bold">معلم المادة</p>
+                    <p>${teacherName}</p>
+                </div>
+                <div class="sign-box">
+                    <p class="bold">إدارة المدرسة</p>
+                    <p>.......................</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 80px; border-top: 1px dashed #000; padding-top: 20px; font-size: 14px;">
+                <p style="text-align: center; font-weight: bold;">إقرار ولي الأمر</p>
+                <p>أنا الموقع أدناه ولي أمر الطالب المذكور أعلاه، أقر بأنني استلمت خطاب الاستدعاء وسأقوم بمراجعة المدرسة في الموعد المحدد.</p>
+                <p style="margin-top: 20px;">التوقيع: ........................................... التاريخ: ......................</p>
+            </div>
+        </div>
+      `;
+      exportPDF(element, `استدعاء_ولي_أمر_${student.name}.pdf`, setIsGeneratingPdf, 'portrait');
+  };
+
   const handleSaveReport = () => {
-    // PDF Report Logic - Ensures Cumulative Data is Shown
     const element = document.createElement('div');
     element.setAttribute('dir', 'rtl');
     element.style.fontFamily = 'Tajawal, sans-serif';
     element.style.padding = '20px';
-    element.style.color = '#000';
+    element.style.color = '#000000'; // Force strict black
+    element.style.backgroundColor = '#ffffff'; // Force white background
 
     const avatarHtml = student.avatar 
         ? `<img src="${student.avatar}" style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #eee; display: block; margin-left: 15px;" />` 
         : `<div style="width: 70px; height: 70px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; margin-left: 15px; font-weight: bold; font-size: 24px; color: #888;">${student.name.charAt(0)}</div>`;
 
+    const cellStyle = "border:1px solid #000000 !important; padding:6px; font-size:12px; color: #000000 !important;";
+
+    // Behavior Rows
     const behaviorRows = behaviors.map(b => `
         <tr>
-            <td style="border:1px solid #ccc; padding:6px; font-size:12px;">${b.description}</td>
-            <td style="border:1px solid #ccc; padding:6px; font-size:12px; text-align:center;">${new Date(b.date).toLocaleDateString('ar-EG')}</td>
-            <td style="border:1px solid #ccc; padding:6px; font-size:12px; text-align:center; color:${b.type === 'positive' ? 'green' : 'red'}; font-weight:bold;">${b.type === 'positive' ? 'إيجابي' : 'سلبي'}</td>
+            <td style="${cellStyle}">${b.description}</td>
+            <td style="${cellStyle}; text-align:center;">${new Date(b.date).toLocaleDateString('ar-EG')}</td>
+            <td style="${cellStyle}; text-align:center; color:${b.type === 'positive' ? 'green' : 'red'} !important; font-weight:bold;">${b.type === 'positive' ? 'إيجابي' : 'سلبي'}</td>
         </tr>
     `).join('');
 
-    // Use shared symbol logic for PDF as well
-    const getSym = (p: number, max: number) => {
-        const s = getGradeSymbol(p, max);
-        return s.symbol === '-' ? '-' : s.symbol;
-    };
+    // Grades Rows (Current Semester)
+    const gradesRows = currentSemesterGrades.map(g => `
+        <tr>
+            <td style="${cellStyle}">${g.category}</td>
+            <td style="${cellStyle}; text-align:center; font-weight:bold;">${g.score}</td>
+            <td style="${cellStyle}; text-align:center;">${new Date(g.date).toLocaleDateString('ar-EG')}</td>
+        </tr>
+    `).join('');
 
-    const s1Sym = getSym(sem1Percentage, sem1Stats.max);
-    const s2Sym = getSym(sem2Percentage, sem2Stats.max);
-    const finalSym = getSym(finalPercentage, finalMax);
     const governorateLine = teacherInfo?.governorate ? `المديرية العامة للتربية والتعليم لمحافظة ${teacherInfo.governorate}` : '';
 
     element.innerHTML = `
-      <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px;">
+      <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000000; padding-bottom: 15px; color: #000000 !important;">
         <div style="font-size:12px; font-weight:bold; margin-bottom:5px;">سلطنة عمان<br/>وزارة التربية والتعليم<br/>${governorateLine}</div>
-        <h1 style="margin: 10px 0; font-size: 24px;">تقرير الطالب الدراسي والسلوكي</h1>
-        <p style="margin: 8px 0 0; font-size: 18px; color: #000; font-weight: bold;">مدرسة  ${teacherInfo?.school || '................'}</p>
-        ${teacherInfo?.subject ? `<p style="margin: 5px 0 0; font-size: 14px; color: #555;">المادة: ${teacherInfo.subject}</p>` : ''}
-        <p style="margin: 5px 0 0; font-size: 14px; color: #555;">تاريخ التقرير  <span dir="ltr">${new Date().toLocaleDateString('ar-EG')}</span></p>
+        <h1 style="margin: 10px 0; font-size: 24px; font-weight: bold;">تقرير الطالب الدراسي والسلوكي</h1>
+        <p style="margin: 8px 0 0; font-size: 18px; color: #000000; font-weight: bold;">مدرسة  ${teacherInfo?.school || '................'}</p>
+        ${teacherInfo?.subject ? `<p style="margin: 5px 0 0; font-size: 14px; color: #000000;">المادة: ${teacherInfo.subject}</p>` : ''}
+        <p style="margin: 5px 0 0; font-size: 14px; color: #000000;">تاريخ التقرير  <span dir="ltr">${new Date().toLocaleDateString('ar-EG')}</span></p>
       </div>
-      <div style="background: #f9fafb; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e5e7eb; display: flex; align-items: center;">
+      <div style="background: #f9fafb; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e5e7eb; display: flex; align-items: center; color: #000000 !important;">
          ${avatarHtml}
-         <table style="width: 100%; border-collapse: collapse;">
+         <table style="width: 100%; border-collapse: collapse; color: #000000 !important;">
             <tr><td style="padding:6px; font-weight:bold; width: 100px;">اسم الطالب:</td><td style="padding:6px; font-size: 16px;">${student.name}</td></tr>
             <tr><td style="padding:6px; font-weight:bold;">الصف:</td><td style="padding:6px;">${student.classes[0] || '-'}</td></tr>
          </table>
       </div>
-      <div style="margin-bottom: 20px;">
-         <h3 style="border-bottom: 1px solid #333; padding-bottom: 5px;">ملخص النتائج</h3>
-         <table style="width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #ccc; margin-top: 10px;">
-            <tr style="background: #f0f0f0;"><th>الفصل 1</th><th>الفصل 2</th><th>المجموع التراكمي</th><th>النتيجة النهائية</th></tr>
+      
+      <!-- Academic Summary -->
+      <div style="margin-bottom: 20px; color: #000000 !important;">
+         <h3 style="border-bottom: 1px solid #000000; padding-bottom: 5px; font-weight: bold;">الملخص الدراسي</h3>
+         <table style="width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #000000 !important; margin-top: 10px; color: #000000 !important;">
+            <tr style="background: #f0f0f0;">
+                <th style="${cellStyle}">الفصل 1</th>
+                <th style="${cellStyle}">الفصل 2</th>
+                <th style="${cellStyle}">المجموع التراكمي</th>
+                <th style="${cellStyle}">الرمز</th>
+            </tr>
             <tr>
-                <td style="padding:10px; border:1px solid #ccc;">${sem1Stats.score} <span style="font-size:10px; color:#666">(${s1Sym})</span></td>
-                <td style="padding:10px; border:1px solid #ccc;">${sem2Stats.score} <span style="font-size:10px; color:#666">(${s2Sym})</span></td>
-                <td style="padding:10px; border:1px solid #ccc;">${finalScore} / ${finalMax}</td>
-                <td style="padding:10px; border:1px solid #ccc; background:#f0f9ff; font-weight:bold;">${finalPercentage}% <span style="color:#000">(${finalSym})</span></td>
+                <td style="${cellStyle}">${sem1Stats.score}</td>
+                <td style="${cellStyle}">${sem2Stats.score}</td>
+                <td style="${cellStyle}; background:#f0f9ff; font-weight:bold;">${finalScore}</td>
+                <td style="${cellStyle}; font-weight:bold;">${getGradeSymbol(finalScore)}</td>
             </tr>
          </table>
       </div>
-      <div style="margin-bottom: 20px;">
-         <h3 style="border-bottom: 1px solid #333; padding-bottom: 5px;">السلوكيات</h3>
-         <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-            <thead><tr style="background:#e5e7eb;"><th style="border:1px solid #ccc; padding:6px;">الوصف</th><th style="border:1px solid #ccc; padding:6px;">التاريخ</th><th style="border:1px solid #ccc; padding:6px;">النوع</th></tr></thead>
-            <tbody>${behaviorRows || '<tr><td colspan="3" style="text-align:center; padding:10px;">لا توجد بيانات</td></tr>'}</tbody>
+
+      <!-- Detailed Grades Section (New) -->
+      <div style="margin-bottom: 20px; color: #000000 !important;">
+         <h3 style="border-bottom: 1px solid #000000; padding-bottom: 5px; font-weight: bold;">تفاصيل الدرجات (فصل ${currentSemester || '1'})</h3>
+         <table style="width: 100%; border-collapse: collapse; margin-top: 10px; color: #000000 !important;">
+            <thead>
+                <tr style="background:#e5e7eb;">
+                    <th style="${cellStyle}">أداة التقويم</th>
+                    <th style="${cellStyle}; width: 80px;">الدرجة</th>
+                    <th style="${cellStyle}; width: 100px;">التاريخ</th>
+                </tr>
+            </thead>
+            <tbody>${gradesRows || `<tr><td colspan="3" style="${cellStyle}; text-align:center; padding:10px;">لا توجد درجات مرصودة لهذا الفصل</td></tr>`}</tbody>
          </table>
       </div>
-      <table style="width: 100%; margin-top: 60px;">
+
+      <!-- Behavior Section -->
+      <div style="margin-bottom: 20px; color: #000000 !important;">
+         <h3 style="border-bottom: 1px solid #000000; padding-bottom: 5px; font-weight: bold;">سجل السلوك</h3>
+         <table style="width: 100%; border-collapse: collapse; margin-top: 10px; color: #000000 !important;">
+            <thead>
+                <tr style="background:#e5e7eb;">
+                    <th style="${cellStyle}">الوصف</th>
+                    <th style="${cellStyle}">التاريخ</th>
+                    <th style="${cellStyle}">النوع</th>
+                </tr>
+            </thead>
+            <tbody>${behaviorRows || `<tr><td colspan="3" style="${cellStyle}; text-align:center; padding:10px;">سجل السلوك نظيف</td></tr>`}</tbody>
+         </table>
+      </div>
+
+      <table style="width: 100%; margin-top: 60px; color: #000000 !important;">
          <tr>
              <td style="text-align: center; width: 50%; vertical-align: top;"><p style="font-weight: bold; margin-bottom: 40px;">المعلم(ة)</p><p style="font-weight: bold;">${teacherInfo?.name || '.........................'}</p></td>
              <td style="text-align: center; width: 50%; vertical-align: top;"><p style="font-weight: bold; margin-bottom: 40px;">مدير(ة) المدرسة</p><p>.........................</p></td>
          </tr>
       </table>`;
     exportPDF(element, `تقرير_${student.name}.pdf`, setIsGeneratingPdf);
-  };
-
-  const handleGenerateSummons = async (grade: GradeRecord) => {
-    setGeneratingSummonsId(grade.id);
-    let emblemSrc = await getBase64Image('oman_logo.png') || await getBase64Image('icon.png');
-    const todayDate = new Date();
-    const governorateLine = teacherInfo?.governorate || '...............';
-
-    const element = document.createElement('div');
-    element.setAttribute('dir', 'rtl');
-    element.style.fontFamily = 'Tajawal, sans-serif';
-    element.style.padding = '0';
-    element.style.color = '#000';
-    element.style.height = '100%';
-    element.style.width = '100%';
-    element.style.backgroundColor = 'white';
-    
-    element.innerHTML = `
-        <div style="border: 3px solid #000; padding: 25px; margin: 10px; height: 95%; position: relative;">
-            <div style="border-bottom: 3px solid #000; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start;">
-                 <div style="text-align: left; font-size: 14px; font-weight: bold; line-height: 1.6;">: اليوم ${new Date().toLocaleDateString('ar-EG', {weekday: 'long'})}<br/>: التاريخ ${todayDate.toLocaleDateString('ar-EG')}</div>
-                 <div style="text-align: center; font-size: 14px; font-weight: bold; line-height: 1.5;">سلطنة عمان<br/>وزارة التربية والتعليم<br/>المديرية العامة للتربية والتعليم لمحافظة ${governorateLine}<br/>مدرسة ${teacherInfo?.school}</div>
-            </div>
-            <div style="text-align: center; margin-top: 25px;"><h2 style="text-decoration: underline; font-size: 26px; font-weight: bold; margin-bottom: 30px;">دعوة ولي الأمر لشأن يتعلق بالطالب</h2></div>
-            <div style="font-size: 18px; line-height: 1.8; padding: 0 10px; font-weight: 500;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;"><div><strong>الفاضل ولي أمر الطالب / ${student.name}</strong></div><div style="font-weight: bold;">المحترم</div></div>
-                <div style="margin-bottom: 30px;"><strong>المقيد بالصف / ${student.classes[0]}</strong></div>
-                <div style="text-align: center; font-weight: bold; font-size: 20px; margin-bottom: 20px;">السلام عليكم ورحمة الله وبركاته</div>
-                <p style="margin-bottom: 15px;">نظرا لأهمية التعاون بين المدرسة وولي الأمر فيما يخدم مصلحة الطالب ويحقق له النجاح</p>
-                <p style="margin-bottom: 20px;">نأمل حضوركم لبحث بعض الأمور المتعلقة بابنكم...</p>
-                <div style="margin: 30px 0; display: flex; gap: 10px;"><strong>وذلك في يوم ................................ الموافق ................................</strong></div>
-                <div style="margin-bottom: 20px;"><strong>ومراجعة الأستاذ / ${teacherInfo?.name}</strong></div>
-            </div>
-            <div style="border: 2px solid #000; border-radius: 15px; padding: 20px; margin: 30px 0; position: relative;">
-                <div style="position: absolute; top: -15px; right: 20px; background: white; padding: 0 10px; font-weight: bold; font-size: 18px; text-decoration: underline;">سبب الاستدعاء</div>
-                <div style="padding-top: 10px; font-size: 18px;"><p style="margin-bottom: 10px;">تدني المستوى التحصيلي في مادة ${grade.category}</p><p>الدرجة الحالية ${grade.score} من ${grade.maxScore}</p></div>
-            </div>
-            <div style="text-align: center; font-weight: bold; font-size: 20px; margin: 40px 0;">شاكرين حسن تعاونكم معنا</div>
-            <div style="display: flex; justify-content: space-between; margin-top: 50px; padding: 0 20px;">
-                <div style="text-align: center; width: 200px;"><p style="font-weight: bold; margin-bottom: 60px;">المعلم / ة</p><p>${teacherInfo?.name}</p></div>
-                <div style="text-align: center; width: 200px;"><p style="font-weight: bold; margin-bottom: 60px;">مدير / ة المدرسة</p><p>.........................</p></div>
-            </div>
-        </div>`;
-    exportPDF(element, `استدعاء_${student.name}.pdf`, (isLoading) => { if (!isLoading) setGeneratingSummonsId(null); });
   };
 
   const handleWhatsAppWithPDF = async () => {
@@ -339,20 +404,22 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
       } else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) {
            cleanPhone = '968' + cleanPhone.substring(1);
       }
-      handleSaveReport();
+      
       const msg = encodeURIComponent(`السلام عليكم، مرفق لكم تقرير الطالب ${student.name}.`);
+      
       const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-      setTimeout(async () => {
-           try {
-              await Browser.open({ url: url });
-          } catch (e) {
-              window.open(url, '_blank');
+      
+      if (Capacitor.isNativePlatform()) {
+          try {
+              await Browser.open({ url: `whatsapp://send?phone=${cleanPhone}&text=${msg}` });
+          } catch {
+              await Browser.open({ url });
           }
-      }, 2500); 
+      } else {
+          window.open(url, '_blank');
+      }
   };
 
-  // --- Styles Constants (Clean White UI) ---
-  // Pure white/dark backgrounds, no conditional coloring
   const cardStyle = "bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm rounded-[2rem] backdrop-blur-md";
   const innerCardStyle = "bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl";
 
@@ -403,51 +470,43 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             {/* Stats Grid - Revised for Cumulative Logic & Clean UI */}
             <div className="grid grid-cols-2 gap-3">
                 {/* Final Total (Cumulative) */}
-                <div className={`p-4 flex flex-col items-center justify-center h-32 col-span-1 ${innerCardStyle}`}>
+                <div className={`p-4 flex flex-col items-center justify-center h-32 col-span-2 ${innerCardStyle}`}>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-white/40 mb-1 flex items-center gap-1"><Calculator className="w-3 h-3"/> المجموع التراكمي</span>
-                    <div className="flex flex-col items-center mt-1">
+                    <div className="flex items-center gap-3 mt-1">
                         <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{finalScore}</span>
-                        <span className="text-xs font-bold text-slate-400 dark:text-white/40">من {finalMax}</span>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${getSymbolColor(finalScore)}`}>
+                            {getGradeSymbol(finalScore)}
+                        </div>
                     </div>
-                </div>
-
-                {/* Final Level */}
-                <div className={`p-4 flex flex-col items-center justify-center h-32 col-span-1 ${innerCardStyle}`}>
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-white/40 mb-1">المستوى العام</span>
-                    {finalSymbol.symbol !== '-' ? (
-                        <>
-                            <span className={`text-4xl font-black mt-2 ${finalSymbol.color}`}>{finalSymbol.symbol}</span>
-                            <span className={`text-[10px] font-bold opacity-80 mt-1 ${finalSymbol.color}`}>{finalSymbol.desc}</span>
-                        </>
-                    ) : (
-                        <span className="text-2xl font-black text-slate-300 dark:text-white/20">-</span>
-                    )}
                 </div>
 
                 {/* Sem 1 Breakdown */}
                 <div className={`p-3 flex items-center justify-between ${innerCardStyle}`}>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-white/60">الفصل الأول</span>
-                    <div className="text-right">
-                        <span className="block text-sm font-black text-slate-900 dark:text-white">{sem1Stats.score} <span className="text-[10px] text-slate-400">/ {sem1Stats.max}</span></span>
-                        <span className={`text-[10px] font-black ${sem1Symbol.color}`}>{sem1Symbol.symbol} - {sem1Symbol.desc}</span>
+                    <div className="text-right flex items-center gap-2">
+                        <span className="block text-sm font-black text-slate-900 dark:text-white">{sem1Stats.score}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getSymbolColor(sem1Stats.score)}`}>{getGradeSymbol(sem1Stats.score)}</span>
                     </div>
                 </div>
 
                 {/* Sem 2 Breakdown */}
                 <div className={`p-3 flex items-center justify-between ${innerCardStyle}`}>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-white/60">الفصل الثاني</span>
-                    <div className="text-right">
-                        <span className="block text-sm font-black text-slate-900 dark:text-white">{sem2Stats.score} <span className="text-[10px] text-slate-400">/ {sem2Stats.max}</span></span>
-                        <span className={`text-[10px] font-black ${sem2Symbol.color}`}>{sem2Symbol.symbol} - {sem2Symbol.desc}</span>
+                    <div className="text-right flex items-center gap-2">
+                        <span className="block text-sm font-black text-slate-900 dark:text-white">{sem2Stats.score}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getSymbolColor(sem2Stats.score)}`}>{getGradeSymbol(sem2Stats.score)}</span>
                     </div>
                 </div>
             </div>
             
-            {finalPercentage >= 90 && (
+            <div className="space-y-2">
                 <button onClick={handleGenerateCertificate} disabled={isGeneratingPdf} className="w-full bg-gradient-to-r from-amber-400 to-yellow-500 text-white py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">
                     {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin"/> : <Medal className="w-5 h-5" />} إصدار شهادة تفوق
                 </button>
-            )}
+                <button onClick={handleGenerateSummons} disabled={isGeneratingPdf} className="w-full bg-gradient-to-r from-rose-500 to-red-600 text-white py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 active:scale-95 transition-all">
+                    {isGeneratingPdf ? <Loader2 className="w-5 h-5 animate-spin"/> : <FileWarning className="w-5 h-5" />} استدعاء ولي أمر
+                </button>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
                 <div className={`p-3 flex flex-col items-center justify-center min-h-[80px] ${innerCardStyle}`}>
@@ -466,34 +525,6 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                 </div>
             </div>
 
-            {lowGradesForSummons.length > 0 && (
-                <div className={`p-4 ${innerCardStyle} border-l-4 border-l-amber-400`}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="p-1.5 bg-amber-100 dark:bg-amber-500/20 rounded-lg text-amber-600 dark:text-amber-400">
-                            <Mail className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-xs font-black text-slate-800 dark:text-white">إجراء إداري مطلوب</h3>
-                            <p className="text-[10px] font-bold text-slate-500 dark:text-white/60">درجة متدنية</p>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        {lowGradesForSummons.map(grade => (
-                            <div key={grade.id} className="w-full bg-white dark:bg-white/5 p-3 rounded-xl border border-gray-200 dark:border-white/10 flex items-center justify-between shadow-sm">
-                                <div className="text-right">
-                                    <span className="block text-[10px] font-black text-slate-800 dark:text-white">{grade.category}</span>
-                                    <span className="text-[9px] font-bold text-rose-500">الدرجة: {grade.score}</span>
-                                </div>
-                                <button onClick={() => handleGenerateSummons(grade)} disabled={generatingSummonsId !== null} className="px-3 py-1.5 rounded-lg flex gap-1 items-center bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/30 border border-amber-200 dark:border-amber-500/20 transition-colors">
-                                    <span className="text-[9px] font-black">استدعاء</span>
-                                    <UserCheck className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {student.parentPhone && (
               <div className="flex gap-2 border-t border-gray-100 dark:border-white/10 pt-4">
                 <button onClick={handleWhatsAppWithPDF} className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20 rounded-xl text-[10px] font-black active:scale-95 transition-all hover:bg-emerald-100 dark:hover:bg-emerald-500/20">
@@ -506,10 +537,36 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
             )}
           </div>
 
+          {/* Academic Record List (NEW SECTION) */}
+          <div className={`${cardStyle} overflow-hidden`}>
+            <div className="bg-gray-50 dark:bg-white/5 p-4 border-b border-gray-100 dark:border-white/10 flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-indigo-500" />
+                <h3 className="font-black text-slate-800 dark:text-white text-[11px]">السجل الأكاديمي ({currentSemester === '2' ? 'فصل 2' : 'فصل 1'})</h3>
+            </div>
+            <div className="p-3">
+                <div className="grid grid-cols-2 gap-2">
+                    {currentSemesterGrades.length > 0 ? currentSemesterGrades.map(g => (
+                        <div key={g.id} className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden group">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-white/60 mb-1">{g.category}</span>
+                            <div className="flex items-end justify-between">
+                                <span className={`text-lg font-black ${getSymbolColor(g.score)} bg-transparent p-0`}>{g.score}</span>
+                                <span className="text-[8px] text-slate-300 dark:text-white/20">{new Date(g.date).toLocaleDateString('en-GB', {day:'numeric', month:'numeric'})}</span>
+                            </div>
+                            <div className={`absolute bottom-0 left-0 h-1 w-full opacity-20 ${getSymbolColor(g.score).split(' ')[2]}`}></div>
+                        </div>
+                    )) : (
+                        <div className="col-span-2 text-center py-6 text-[10px] text-slate-400 dark:text-white/30 font-bold border-2 border-dashed border-gray-100 dark:border-white/5 rounded-xl">
+                            لا توجد درجات مرصودة لهذا الفصل
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+
           {/* Behavior List - Standard Card */}
           <div className={`${cardStyle} overflow-hidden`}>
             <div className="bg-gray-50 dark:bg-white/5 p-4 border-b border-gray-100 dark:border-white/10 flex items-center gap-2">
-                <Award className="w-4 h-4 text-blue-500" />
+                <LayoutList className="w-4 h-4 text-blue-500" />
                 <h3 className="font-black text-slate-800 dark:text-white text-[11px]">كشف السلوكيات ({currentSemester === '2' ? 'فصل 2' : 'فصل 1'})</h3>
             </div>
             <div className="divide-y divide-gray-100 dark:divide-white/5">

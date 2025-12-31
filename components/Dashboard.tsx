@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Student, ScheduleDay, PeriodTime } from '../types';
 import { PieChart, Pie, Cell } from 'recharts';
-import { Award, AlertCircle, Sun, Moon, Coffee, Calendar, Edit2, X, Clock, ArrowRight, FileSpreadsheet, Loader2, Settings, ChevronLeft, CalendarCheck } from 'lucide-react';
+import { Award, AlertCircle, Sun, Moon, Coffee, Calendar, Edit2, X, Clock, ArrowRight, FileSpreadsheet, Loader2, Settings, ChevronLeft, CalendarCheck, Timer, BellRing, Bell, BellOff, School, MapPin, Building2, UserCircle2, Camera, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion } from 'framer-motion';
 import Modal from './Modal';
@@ -10,8 +10,8 @@ import { useTheme } from '../context/ThemeContext';
 
 interface DashboardProps {
   students: Student[];
-  teacherInfo: { name: string; school: string; subject: string; governorate: string };
-  onUpdateTeacherInfo: (info: { name: string; school: string; subject: string; governorate: string }) => void;
+  teacherInfo: { name: string; school: string; subject: string; governorate: string; avatar?: string };
+  onUpdateTeacherInfo: (info: { name: string; school: string; subject: string; governorate: string; avatar?: string }) => void;
   schedule: ScheduleDay[];
   onUpdateSchedule: (newSchedule: ScheduleDay[]) => void;
   onSelectStudent: (s: Student) => void;
@@ -19,22 +19,47 @@ interface DashboardProps {
   onOpenSettings: () => void;
   periodTimes: PeriodTime[];
   setPeriodTimes: React.Dispatch<React.SetStateAction<PeriodTime[]>>;
+  notificationsEnabled: boolean;
+  onToggleNotifications: () => void;
 }
 
 const OMAN_GOVERNORATES = ["مسقط", "ظفار", "مسندم", "البريمي", "الداخلية", "شمال الباطنة", "جنوب الباطنة", "جنوب الشرقية", "شمال الشرقية", "الظاهرة", "الوسطى"];
 
-const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpdateTeacherInfo, schedule, onUpdateSchedule, onSelectStudent, onNavigate, onOpenSettings, periodTimes, setPeriodTimes }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+    students = [], 
+    teacherInfo, 
+    onUpdateTeacherInfo, 
+    schedule, 
+    onUpdateSchedule, 
+    onSelectStudent, 
+    onNavigate, 
+    onOpenSettings, 
+    periodTimes, 
+    setPeriodTimes,
+    notificationsEnabled,
+    onToggleNotifications
+}) => {
   const { theme, isLowPower } = useTheme();
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const [isImportingSchedule, setIsImportingSchedule] = useState(false);
-  
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   const [editName, setEditName] = useState(teacherInfo.name);
   const [editSchool, setEditSchool] = useState(teacherInfo.school);
   const [editSubject, setEditSubject] = useState(teacherInfo.subject);
   const [editGovernorate, setEditGovernorate] = useState(teacherInfo.governorate);
+  const [editAvatar, setEditAvatar] = useState(teacherInfo.avatar || '');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Update clock every minute
+  useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+      return () => clearInterval(timer);
+  }, []);
 
   const getCardStyle = () => {
       // Solid if Low Power
@@ -87,6 +112,31 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
   const todayName = daysMap[new Date().getDay()];
   const todaySchedule = schedule.find(s => s.dayName === todayName);
 
+  // --- Helper to compare times ---
+  const parseTime = (timeStr: string) => {
+      if (!timeStr) return null;
+      const [h, m] = timeStr.split(':').map(Number);
+      const date = new Date();
+      date.setHours(h, m, 0, 0);
+      return date;
+  };
+
+  const getPeriodStatus = (startTime: string, endTime: string) => {
+      const start = parseTime(startTime);
+      const end = parseTime(endTime);
+      const now = new Date(); // Use actual now, not state, for better precision in render
+
+      if (!start || !end) return 'unknown';
+      if (now > end) return 'past';
+      if (now >= start && now <= end) return 'active';
+      return 'future';
+  };
+
+  // Find active period index
+  const activePeriodIndex = useMemo(() => {
+      return periodTimes.findIndex(pt => getPeriodStatus(pt.startTime, pt.endTime) === 'active');
+  }, [periodTimes, currentTime]);
+
   const handlePeriodChange = (dayIdx: number, periodIdx: number, val: string) => {
     const updatedSchedule = [...schedule];
     updatedSchedule[dayIdx].periods = [...updatedSchedule[dayIdx].periods];
@@ -101,12 +151,23 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
   };
 
   const handleSaveInfo = () => {
-      onUpdateTeacherInfo({ name: editName, school: editSchool, subject: editSubject, governorate: editGovernorate });
+      onUpdateTeacherInfo({ name: editName, school: editSchool, subject: editSubject, governorate: editGovernorate, avatar: editAvatar });
       setIsEditingInfo(false);
   };
 
   const openInfoEditor = () => {
-      setEditName(teacherInfo.name); setEditSchool(teacherInfo.school); setEditSubject(teacherInfo.subject); setEditGovernorate(teacherInfo.governorate); setIsEditingInfo(true);
+      setEditName(teacherInfo.name); setEditSchool(teacherInfo.school); setEditSubject(teacherInfo.subject); setEditGovernorate(teacherInfo.governorate); setEditAvatar(teacherInfo.avatar || ''); setIsEditingInfo(true);
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setEditAvatar(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
   };
 
   const handleImportSchedule = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,65 +193,152 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
 
   return (
     <div className="space-y-4 pb-24 md:pb-8">
-      {/* Welcome Banner - Refactored for Auto Height and Full Info */}
-      <div className={`relative overflow-hidden ${getCardStyle()} transition-all transform-gpu`}>
-        <div className="relative z-10 px-6 py-5 flex flex-row justify-between items-start gap-4">
-          <div className="flex flex-col gap-1 w-full">
-            <div className="flex items-center gap-2 mb-1">
-              <GreetingIcon className="text-indigo-500 w-4 h-4" />
-              <span className="text-[10px] font-bold tracking-widest uppercase text-slate-500 dark:text-white/60">{greeting}</span>
-            </div>
+      
+      {/* 
+          === ULTIMATE COMPACT ID CARD (COMPLETE IDENTITY) === 
+          Now includes Subject Name on a separate line for clarity.
+      */}
+      <div className="relative w-full rounded-3xl overflow-hidden shadow-xl shadow-indigo-500/10 transition-all group">
+        
+        {/* Animated Background */}
+        <div className="absolute inset-0 bg-[#0f172a]">
+            <div className="absolute top-[-50%] left-[-20%] w-[120%] h-[120%] bg-blue-600 rounded-full mix-blend-screen blur-[100px] opacity-20 animate-pulse"></div>
+            <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-purple-600 rounded-full mix-blend-screen blur-[80px] opacity-20"></div>
+        </div>
+
+        {/* Content Container */}
+        <div className="relative z-10 p-6 bg-white/5 backdrop-blur-2xl border border-white/10 flex flex-col justify-between h-auto min-h-[220px]">
             
-            <div className="flex items-start justify-between w-full">
-               <div className="flex flex-col gap-1">
-                   <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white break-words">أ. {teacherInfo?.name || 'المعلم'}</h2>
-                   <p className="text-xs font-bold text-slate-600 dark:text-white/70">
-                       {teacherInfo?.subject ? `${teacherInfo.subject} - ` : ''}{teacherInfo?.school || 'المدرسة'}
-                   </p>
-                   {teacherInfo?.governorate && (
-                       <p className="text-[10px] font-bold text-slate-400 dark:text-white/40 mt-1">
-                           المديرية العامة للتربية والتعليم لمحافظة {teacherInfo.governorate}
-                       </p>
-                   )}
-               </div>
-               <div className="flex flex-col gap-2 shrink-0">
-                   <button onClick={onOpenSettings} className="w-9 h-9 bg-slate-100 dark:bg-white/10 rounded-xl flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-white"><Settings className="w-4 h-4" /></button>
-                   <button onClick={openInfoEditor} className="w-9 h-9 bg-slate-100 dark:bg-white/10 rounded-xl flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-white"><Edit2 className="w-4 h-4" /></button>
-               </div>
+            {/* Top Row: Horizontal Layout */}
+            <div className="flex items-start gap-5">
+                
+                {/* 1. Avatar (Larger & Circular) */}
+                <div 
+                    onClick={openInfoEditor}
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-white/20 to-white/5 border-2 border-white/20 flex items-center justify-center shrink-0 shadow-lg cursor-pointer hover:scale-105 transition-transform overflow-hidden relative"
+                >
+                    {teacherInfo.avatar ? (
+                        <img src={teacherInfo.avatar} alt="Teacher" className="w-full h-full object-cover" />
+                    ) : (
+                        <UserCircle2 className="w-10 h-10 text-white/90" strokeWidth={1.5} />
+                    )}
+                </div>
+                
+                {/* 2. Main Info Stack (Expanded for complete identity) */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center pt-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] font-bold text-yellow-300 flex items-center gap-1 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/10">
+                            <GreetingIcon className="w-3 h-3" /> {greeting}
+                        </span>
+                    </div>
+                    
+                    {/* Name */}
+                    <h1 className="text-xl font-black text-white tracking-wide truncate leading-tight mb-2">
+                        {teacherInfo?.name || 'المعلم'}
+                    </h1>
+                    
+                    {/* School Name (Line 1) */}
+                    <div className="flex items-center gap-2 text-indigo-200/90 text-xs font-bold truncate mb-1.5">
+                        <School className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{teacherInfo?.school || 'المدرسة'}</span>
+                    </div>
+
+                    {/* Subject Name (Line 2 - New) */}
+                    <div className="flex items-center gap-2 text-emerald-300/90 text-xs font-bold truncate">
+                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{teacherInfo?.subject || 'المادة الدراسية'}</span>
+                    </div>
+                </div>
+
+                {/* 3. Edit Button (Top Left) */}
+                <button 
+                    onClick={openInfoEditor} 
+                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white border border-white/10 transition-all self-start active:scale-95"
+                >
+                    <Edit2 className="w-4 h-4 opacity-90" />
+                </button>
             </div>
-          </div>
+
+            {/* Bottom Strip: Directorate (Integrated & Compact) */}
+            <div className="mt-5 pt-4 border-t border-white/10 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-blue-300/60 shrink-0" />
+                <p className="text-[10px] font-bold text-white/60 leading-none truncate tracking-wide">
+                    {teacherInfo?.governorate 
+                        ? `المديرية العامة للتربية والتعليم لمحافظة ${teacherInfo.governorate}`
+                        : 'وزارة التربية والتعليم'}
+                </p>
+            </div>
+
         </div>
       </div>
 
       {/* Action Button */}
-      <button onClick={() => onNavigate('attendance')} className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 p-1 shadow-lg shadow-indigo-500/30 rounded-[1.8rem]">
-            <div className="bg-transparent px-5 py-3 flex items-center justify-between rounded-[1.8rem]">
+      <button onClick={() => onNavigate('attendance')} className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 p-1 shadow-lg shadow-indigo-500/30 rounded-[1.5rem]">
+            <div className="bg-transparent px-5 py-3 flex items-center justify-between rounded-[1.5rem]">
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-white"><CalendarCheck className="w-5 h-5" /></div>
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white"><CalendarCheck className="w-5 h-5" /></div>
                     <span className="font-bold text-sm text-white">تسجيل الحضور</span>
                 </div>
-                <div className="bg-white/20 px-4 py-1.5 rounded-xl text-[10px] font-black text-white flex items-center gap-1">ابدأ <ChevronLeft className="w-3 h-3" /></div>
+                <div className="bg-white/20 px-4 py-1.5 rounded-lg text-[10px] font-black text-white flex items-center gap-1">ابدأ <ChevronLeft className="w-3 h-3" /></div>
             </div>
       </button>
 
-      {/* Schedule */}
-      <div className={`${getCardStyle()} p-4 relative`}>
-         <div className="flex justify-between items-center mb-3">
-           <h3 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm"><Calendar className="w-4 h-4 text-indigo-500" /> جدول {todayName}</h3>
+      {/* Schedule - Live Timeline Upgrade */}
+      <div className={`${getCardStyle()} p-4 relative overflow-hidden`}>
+         {/* Live Indicator Background */}
+         {activePeriodIndex !== -1 && (
+             <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent animate-pulse opacity-50"></div>
+         )}
+
+         <div className="flex justify-between items-center mb-4">
+           <h3 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+               <Calendar className={`w-4 h-4 ${activePeriodIndex !== -1 ? 'text-emerald-500 animate-pulse' : 'text-indigo-500'}`} /> 
+               {activePeriodIndex !== -1 ? <span className="text-emerald-600 dark:text-emerald-400">الحصة {activePeriodIndex + 1} جارية الآن</span> : `جدول ${todayName}`}
+           </h3>
            <div className="flex gap-2">
-               <button onClick={() => setShowTimeSettings(true)} className="p-2 bg-amber-50 dark:bg-white/10 text-amber-600 dark:text-amber-200 rounded-xl"><Clock className="w-3.5 h-3.5"/></button>
-               <button onClick={() => setIsEditingSchedule(true)} className="p-2 bg-indigo-50 dark:bg-white/10 text-indigo-600 dark:text-indigo-200 rounded-xl"><Edit2 className="w-3.5 h-3.5"/></button>
+               <button onClick={onToggleNotifications} className={`p-2 rounded-xl transition-colors ${notificationsEnabled ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300' : 'bg-gray-100 dark:bg-white/10 text-gray-400'}`}>
+                   {notificationsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+               </button>
+               <button onClick={() => setShowTimeSettings(true)} className="p-2 bg-amber-50 dark:bg-white/10 text-amber-600 dark:text-amber-200 rounded-xl hover:bg-amber-100 transition-colors"><Clock className="w-3.5 h-3.5"/></button>
+               <button onClick={() => setIsEditingSchedule(true)} className="p-2 bg-indigo-50 dark:bg-white/10 text-indigo-600 dark:text-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
            </div>
          </div>
+         
          {todaySchedule ? (
            <div className="grid grid-cols-4 gap-2">
-                {todaySchedule.periods.slice(0, 8).map((p, idx) => (
-                   <div key={idx} className={`flex flex-col items-center justify-between p-2 rounded-xl border h-[70px] ${p ? 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/30' : 'bg-slate-50 dark:bg-white/5 border-transparent'}`}>
-                      <span className="text-[8px] font-black opacity-50 w-full text-right">#{idx + 1}</span>
-                      <span className={`text-[10px] font-black text-center truncate w-full ${p ? 'text-indigo-700 dark:text-indigo-100' : 'opacity-30'}`}>{p || '-'}</span>
-                      <span className="text-[8px] font-bold opacity-50 w-full text-left">{periodTimes[idx]?.startTime || ''}</span>
-                   </div>
-                ))}
+                {todaySchedule.periods.slice(0, 8).map((p, idx) => {
+                   const status = getPeriodStatus(periodTimes[idx]?.startTime, periodTimes[idx]?.endTime);
+                   const isPast = status === 'past';
+                   const isActive = status === 'active';
+                   
+                   return (
+                       <div key={idx} className={`relative flex flex-col items-center justify-between p-2 rounded-xl border h-[75px] transition-all duration-300
+                           ${isActive 
+                               ? 'bg-emerald-50 dark:bg-emerald-500/20 border-emerald-500 dark:border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] scale-105 z-10' 
+                               : isPast 
+                                   ? 'bg-slate-50/50 dark:bg-white/5 border-transparent opacity-60 grayscale' 
+                                   : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10'
+                           }
+                           ${!p ? 'opacity-40' : ''}
+                       `}>
+                          
+                          {isActive && (
+                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce shadow-sm z-20"></div>
+                          )}
+
+                          <span className={`text-[8px] font-black w-full text-right ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'opacity-50'}`}>#{idx + 1}</span>
+                          
+                          <span className={`text-[10px] font-black text-center truncate w-full ${isActive ? 'text-emerald-900 dark:text-white text-xs' : p ? 'text-indigo-700 dark:text-indigo-100' : 'opacity-30'}`}>
+                              {p || '-'}
+                          </span>
+                          
+                          <div className={`w-full text-left flex items-center justify-end gap-1 ${isActive ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-white/30'}`}>
+                              {isActive && <Timer className="w-3 h-3 animate-pulse" />}
+                              <span className="text-[8px] font-bold">{periodTimes[idx]?.startTime || ''}</span>
+                          </div>
+                       </div>
+                   );
+                })}
            </div>
          ) : <p className="text-center text-xs opacity-50 py-4">لا يوجد جدول</p>}
       </div>
@@ -235,6 +383,32 @@ const Dashboard: React.FC<DashboardProps> = ({ students = [], teacherInfo, onUpd
 
       <Modal isOpen={isEditingInfo} onClose={() => setIsEditingInfo(false)}>
          <h3 className="font-black text-sm mb-4">تعديل بيانات المعلم</h3>
+         
+         {/* Avatar Uploader - Now with Label */}
+         <div className="flex flex-col items-center mb-6">
+              <div 
+                className="w-24 h-24 rounded-full bg-slate-100 dark:bg-white/10 border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center cursor-pointer relative overflow-hidden group"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                  {editAvatar ? (
+                      <img src={editAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                      <Camera className="w-8 h-8 text-slate-400 dark:text-white/40" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Edit2 className="w-6 h-6 text-white" />
+                  </div>
+              </div>
+              <span className="text-xs font-bold text-gray-400 dark:text-white/50 mt-2 block">اضغط لتغيير الصورة</span>
+              <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handleAvatarChange}
+              />
+          </div>
+
          <div className="space-y-3">
              <div>
                  <label className="text-[10px] font-bold text-gray-500 mb-1 block">الاسم</label>
