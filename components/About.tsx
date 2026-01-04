@@ -6,48 +6,50 @@ import BrandLogo from './BrandLogo';
 const About: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-full p-6 text-slate-900 dark:text-white animate-in fade-in zoom-in duration-500">
-      <div className="w-32 h-32 bg-white dark:bg-white/10 rounded-full shadow-2xl flex items-center justify-center mb-6 overflow-hidden border-4 border-indigo-50 dark:border-white/10 p-1">
-          <BrandLogo className="w-full h-full" showText={false} />
+      <div className="w-40 h-40 glass-heavy rounded-[3rem] shadow-2xl flex items-center justify-center mb-8 border border-white/20 p-4 relative group">
+          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-[3rem] blur-xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
+          <BrandLogo className="w-full h-full relative z-10" showText={false} />
       </div>
-      <h1 className="text-4xl font-black mb-2 tracking-tight">تطبيق راصد</h1>
-      <p className="text-slate-500 dark:text-white/60 font-bold mb-8">الإصدار 3.3.0</p>
       
-      <div className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-[2.5rem] p-8 max-w-md w-full text-center shadow-xl backdrop-blur-sm">
+      <h1 className="text-5xl font-black mb-2 tracking-tighter text-glow">تطبيق راصد</h1>
+      <p className="glass-card px-6 py-2 rounded-full text-slate-500 dark:text-white/60 font-black text-xs mb-10 border-none shadow-sm">V 3.3.0 • إصدار الزجاج الفائق</p>
+      
+      <div className="glass-heavy border border-white/10 rounded-[3rem] p-10 max-w-md w-full text-center shadow-2xl backdrop-blur-xl">
           <h2 className="text-xl font-black text-slate-800 dark:text-white mb-8 relative inline-block">
               فريق العمل
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-indigo-500 rounded-full opacity-50"></div>
+              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-8 h-1.5 bg-indigo-500 rounded-full opacity-80"></div>
           </h2>
           
           <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-black/20 rounded-2xl border border-gray-100 dark:border-white/5 hover:scale-105 transition-transform duration-300">
-                  <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm shrink-0">
-                      <Users className="w-7 h-7" />
+              <div className="flex items-center gap-5 p-5 glass-card rounded-[2rem] hover:bg-white/10 transition-transform duration-300 hover:-translate-y-1 border border-white/5">
+                  <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 dark:text-indigo-300 shadow-sm shrink-0 border border-indigo-500/20">
+                      <Users className="w-8 h-8" />
                   </div>
                   <div className="text-right">
-                      <p className="text-xs font-bold text-slate-400 dark:text-white/40 mb-1">إعداد وتصميم</p>
+                      <p className="text-[10px] font-black text-slate-400 dark:text-white/40 mb-1 uppercase tracking-wider">إعداد وتصميم</p>
                       <h3 className="text-lg font-black text-slate-800 dark:text-white">أ. محمد درويش الزعابي</h3>
                   </div>
               </div>
 
-              <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-black/20 rounded-2xl border border-gray-100 dark:border-white/5 hover:scale-105 transition-transform duration-300">
-                  <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
-                      <Phone className="w-7 h-7" />
+              <div className="flex items-center gap-5 p-5 glass-card rounded-[2rem] hover:bg-white/10 transition-transform duration-300 hover:-translate-y-1 border border-white/5">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 dark:text-emerald-300 shadow-sm shrink-0 border border-emerald-500/20">
+                      <Phone className="w-8 h-8" />
                   </div>
                   <div className="text-right">
-                      <p className="text-xs font-bold text-slate-400 dark:text-white/40 mb-1">للتواصل والدعم الفني</p>
-                      <h3 className="text-lg font-black text-slate-800 dark:text-white" dir="ltr">+968 99834455</h3>
+                      <p className="text-[10px] font-black text-slate-400 dark:text-white/40 mb-1 uppercase tracking-wider">للتواصل والدعم الفني</p>
+                      <h3 className="text-lg font-black text-slate-800 dark:text-white" dir="ltr">98344555</h3>
                   </div>
               </div>
           </div>
           
-          <div className="mt-8 pt-6 border-t border-gray-100 dark:border-white/10">
-            <p className="text-xs text-slate-400 dark:text-white/30 font-bold leading-relaxed">
+          <div className="mt-10 pt-6 border-t border-white/5">
+            <p className="text-[10px] text-slate-400 dark:text-white/30 font-bold leading-relaxed">
                 تم تطوير هذا التطبيق لخدمة المعلم العماني وتسهيل المهام اليومية داخل الغرفة الصفية.
             </p>
           </div>
       </div>
       
-      <p className="mt-8 text-[10px] font-bold text-slate-300 dark:text-white/20">
+      <p className="mt-12 text-[10px] font-bold text-slate-300 dark:text-white/20">
           جميع الحقوق محفوظة © {new Date().getFullYear()}
       </p>
     </div>
