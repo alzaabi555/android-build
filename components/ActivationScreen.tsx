@@ -16,6 +16,9 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
   const [error, setError] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Developer Mode Logic
+  const [clickCount, setClickCount] = useState(0);
 
   const handleCopy = async () => {
     await Clipboard.write({ string: deviceId });
@@ -64,6 +67,21 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
     }, 800);
   };
 
+  // --- Developer Secret Gesture ---
+  const handleLogoClick = () => {
+      setClickCount(prev => prev + 1);
+      
+      if (clickCount + 1 >= 3) {
+          // Auto-fill Master Code (Must match code in App.tsx)
+          setInputCode('9834-4555');
+          setClickCount(0);
+          // Play a small sound or haptic here if desired
+      }
+      
+      // Reset count after 1 second of inactivity
+      setTimeout(() => setClickCount(0), 1000);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-black p-6 relative overflow-hidden">
         {/* Background Effects */}
@@ -72,8 +90,8 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
 
         <div className="glass-heavy w-full max-w-md p-8 rounded-[2.5rem] border border-white/20 shadow-2xl relative z-10 flex flex-col items-center text-center animate-in fade-in zoom-in duration-500">
             
-            <div className="mb-6 relative">
-                <div className="w-24 h-24 glass-icon rounded-[2rem] flex items-center justify-center shadow-lg border border-white/30">
+            <div className="mb-6 relative" onClick={handleLogoClick}>
+                <div className="w-24 h-24 glass-icon rounded-[2rem] flex items-center justify-center shadow-lg border border-white/30 cursor-pointer active:scale-95 transition-transform">
                     <BrandLogo className="w-14 h-14" showText={false} />
                 </div>
                 <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-xl shadow-md border-2 border-white dark:border-black">
