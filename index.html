@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" data-theme="vision" class="dark">
+<html lang="ar" dir="rtl" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -19,7 +19,7 @@
   <meta name="apple-mobile-web-app-title" content="راصد">
   
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#f1f5f9">
   <link rel="manifest" href="manifest.json">
   
   <script src="https://cdn.tailwindcss.com"></script>
@@ -29,10 +29,13 @@
       theme: {
         extend: {
           colors: {
-            surface: {
-               DEFAULT: '#fdfcf4', 
-               variant: '#f0f4f8',
+            glass: {
+              100: 'var(--glass-border)',
+              200: 'var(--glass-bg)',
             }
+          },
+          fontFamily: {
+            sans: ['Tajawal', 'sans-serif'],
           }
         }
       }
@@ -46,103 +49,179 @@
     :root { 
       --sat: env(safe-area-inset-top, 20px); 
       --sab: env(safe-area-inset-bottom, 20px); 
+      
+      /* --- ICE THEME (Corrected for Visibility) --- */
+      /* Background must be slightly darker (Silver) so the White Glass pops */
+      --bg-base: #e2e8f0; /* Cool Silver/Slate 200 */
+      
+      /* Glass is white but semi-transparent */
+      --glass-bg: rgba(255, 255, 255, 0.65); 
+      --glass-border: rgba(255, 255, 255, 0.95); /* Sharp white edges */
+      --glass-shadow: rgba(148, 163, 184, 0.15); /* Slate shadow */
+      
+      --text-main: #1e293b; /* Slate 800 */
+      --text-muted: #64748b;
+      --icon-bg: rgba(255, 255, 255, 0.8);
+      --modal-bg: rgba(248, 250, 252, 0.85); /* Slate 50 */
+      
+      /* Orbs are Pure White/Lightest Gray to create "Glow" inside the Silver */
+      --orb-1: #ffffff; /* Pure White Light */
+      --orb-2: #f1f5f9; /* Slate 100 */
+      --orb-3: #cbd5e1; /* Slate 300 (Deep Ice Shadow) */
     }
-    html {
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-      -webkit-tap-highlight-color: transparent;
-      height: 100dvh;
-      overscroll-behavior-y: none;
+
+    .dark {
+      /* --- DARK BLACK ICE (Monochrome High Contrast) --- */
+      --bg-base: #000000; /* Void Black */
+      --glass-bg: rgba(25, 25, 25, 0.6); 
+      --glass-border: rgba(255, 255, 255, 0.25); /* Stronger Frost Border */
+      --glass-shadow: rgba(0, 0, 0, 0.8);
+      --text-main: #ffffff; 
+      --text-muted: #a3a3a3;
+      --icon-bg: rgba(60, 60, 60, 0.5);
+      --modal-bg: rgba(20, 20, 20, 0.85);
+
+      /* Deep Ice Reflections */
+      --orb-1: #1a1a1a; 
+      --orb-2: #333333; 
+      --orb-3: #0a0a0a; 
     }
+    
     body { 
       font-family: 'Tajawal', sans-serif; 
       margin: 0; padding: 0; 
-      position: fixed; inset: 0; height: 100dvh; width: 100vw;
+      position: fixed; inset: 0; height: 100%; width: 100%;
       overflow: hidden;
       -webkit-user-select: none; user-select: none;
-      font-size: 14px;
-      overscroll-behavior-y: none;
-      transition: background-color 0.5s ease, color 0.5s ease;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      transition: color 0.5s ease;
     }
 
-    /* THEME: VISION (Dark Mode) */
-    html[data-theme='vision'] body {
-      background-color: #000000;
-      background-image: 
-        radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-      color: #ffffff;
+    /* --- THE ICE ENGINE (Updated for Depth) --- */
+    .aurora-bg {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -2;
+        /* Gradient from Silver to White */
+        background: linear-gradient(135deg, var(--bg-base) 0%, var(--orb-3) 100%);
+        opacity: 1;
+        transition: opacity 0.5s ease;
+    }
+    
+    .aurora-orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(60px); /* Reduced blur to make shapes clearer behind glass */
+        z-index: -1;
+        opacity: 0.8; /* Increased opacity for visibility */
+        transition: background-color 1s ease;
+        animation: float 25s infinite ease-in-out;
+    }
+    
+    /* Positioned to create "Highlights" on the silver background */
+    .orb-1 { top: -10%; left: -10%; width: 70vw; height: 70vw; background: var(--orb-1); animation-delay: 0s; }
+    .orb-2 { bottom: -10%; right: -10%; width: 70vw; height: 70vw; background: var(--orb-2); animation-delay: -8s; }
+    .orb-3 { top: 40%; left: 30%; width: 50vw; height: 50vw; background: var(--orb-1); animation-delay: -4s; filter: blur(40px); }
+
+    /* Frost Texture Overlay (Stronger Grain) */
+    .noise-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -1;
+        opacity: 0.08; /* Increased grain for "Frost" feel */
+        pointer-events: none;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        mix-blend-mode: overlay;
     }
 
-    /* THEME: CERAMIC (Light iOS Mode) */
-    html[data-theme='ceramic'] body {
-      background-color: #f2f2f7; /* iOS System Gray 6 */
-      color: #000000;
+    /* --- GLASS UTILITIES --- */
+    
+    /* Standard Glass Card */
+    .glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px) saturate(120%); /* Reduced blur to see background texture */
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1.5px solid var(--glass-border); /* Thicker border for ice edge effect */
+        box-shadow: 0 4px 20px var(--glass-shadow), inset 0 0 20px rgba(255,255,255,0.5); /* Inner glow */
+        color: var(--text-main);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    
+    .glass-card:hover {
+        background: rgba(255, 255, 255, 0.75);
+        border-color: #ffffff;
+        box-shadow: 0 10px 30px var(--glass-shadow), inset 0 0 10px rgba(255,255,255,0.8);
+        transform: translateY(-2px) scale(1.005);
+    }
+    
+    .dark .glass-card:hover {
+        background: rgba(40, 40, 40, 0.6);
     }
 
-    #root {
-      height: 100%; width: 100%; display: flex; flex-direction: column;
+    /* Heavy Glass (Sidebar, Modals) */
+    .glass-heavy {
+        background: var(--modal-bg);
+        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: blur(30px);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 20px 60px var(--glass-shadow);
+        color: var(--text-main);
+    }
+
+    /* Glass Icon */
+    .glass-icon {
+        background: var(--icon-bg);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+    .glass-icon:active { transform: scale(0.92); }
+
+    /* Inputs */
+    .glass-input {
+        background: rgba(255, 255, 255, 0.4);
+        border: 1px solid var(--glass-border);
+        color: var(--text-main);
+        backdrop-filter: blur(10px);
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .glass-input:focus {
+        background: rgba(255, 255, 255, 0.8);
+        border-color: #ffffff;
+        box-shadow: 0 0 0 3px rgba(255,255,255,0.5);
+    }
+    .glass-input::placeholder { color: var(--text-muted); opacity: 0.7; }
+    
+    .text-glow { text-shadow: 0 2px 10px rgba(255,255,255,0.8); }
+    .dark .text-glow { text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    
+    @keyframes float {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(30px, -50px) rotate(5deg); }
+        66% { transform: translate(-20px, 20px) rotate(-5deg); }
     }
 
     #initial-loader {
-      position: fixed; inset: 0; background: #000; 
+      position: fixed; inset: 0; background: #e2e8f0; 
       display: flex; flex-direction: column; align-items: center; 
       justify-content: center; z-index: 9999;
       transition: opacity 0.4s ease;
     }
-    .loader-spinner {
-      width: 50px; height: 50px; border: 2px solid rgba(255,255,255,0.1);
-      border-top-color: #6366f1; border-radius: 50%;
-      animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-      box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
-    }
+    .dark #initial-loader { background: #000000; }
     
-    #loader-error {
-        display: none;
-        margin-top: 20px;
-        text-align: center;
-        animation: fadeIn 0.5s;
-    }
-    .retry-btn {
-        margin-top: 15px;
-        padding: 10px 20px;
-        background: rgba(255,255,255,0.1);
-        backdrop-filter: blur(10px);
-        color: white;
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 20px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-    /* VisionOS/iOS Scrollbar */
-    @media (pointer: coarse) {
-        .custom-scrollbar::-webkit-scrollbar, .scrollbar-thin::-webkit-scrollbar, ::-webkit-scrollbar {
-            width: 0px; height: 0px; background: transparent;
-        }
-    }
-    @media (pointer: fine) {
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(100, 116, 139, 0.2);
-            border-radius: 20px;
-        }
-        html.dark ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-        }
-        ::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.4); }
-        html.dark ::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.4); }
-        
-        .custom-scrollbar::-webkit-scrollbar, .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
-    }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .loader-spinner { width: 40px; height: 40px; border: 4px solid rgba(0, 0, 0, 0.1); border-top-color: #1e293b; border-radius: 50%; animation: spin 1s linear infinite; }
+    .dark .loader-spinner { border: 4px solid rgba(255, 255, 255, 0.1); border-top-color: #fff; }
     
+    #loader-error { display: none; margin-top: 20px; text-align: center; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    
   </style>
 
   <script>
@@ -165,48 +244,32 @@
     "react/": "https://esm.sh/react@18.3.1/",
     "@capacitor/browser": "https://esm.sh/@capacitor/browser@5.0.0",
     "react-dom": "https://esm.sh/react-dom@18.3.1",
-    "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
+    "jspdf": "https://esm.sh/jspdf@^3.0.4",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "@capacitor/clipboard": "https://esm.sh/@capacitor/clipboard@^8.0.0"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
 <body oncontextmenu="return false;">
+  <div class="aurora-bg"></div>
+  <div class="aurora-orb orb-1"></div>
+  <div class="aurora-orb orb-2"></div>
+  <div class="aurora-orb orb-3"></div>
+  <div class="noise-overlay"></div>
   <div id="initial-loader">
-    <div class="loader-spinner"></div>
-    <div style="margin-top:20px; font-weight: 800; color: #fff; font-size: 16px; letter-spacing: 1px;">RASED OS</div>
-    <div style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 5px;">Loading Environment...</div>
-    
-    <div id="loader-error">
-        <p style="color: #ef4444; font-weight: bold; font-size: 12px;">Connection Timeout</p>
-        <button class="retry-btn" onclick="window.location.reload()">Reload System</button>
-    </div>
+      <div class="loader-spinner"></div>
+      <div style="margin-top:15px; font-weight: 800; color: #1e293b; letter-spacing: 2px;" class="dark:text-white">RASED</div>
+      <div id="loader-error"><p style="color: #ef4444; font-size: 14px;">حدث خطأ</p><button class="retry-btn" onclick="window.location.reload()">إعادة</button></div>
   </div>
-
   <div id="root"></div>
-
-  <script type="module" src="./index.js?v=7.0.0"></script>
-  
+  <script type="module" src="./index.js?v=8.0.0"></script>
   <script>
-    window.onerror = function(msg) {
-      console.error("Global Error:", msg);
-      var loader = document.getElementById('initial-loader');
-      var errorDiv = document.getElementById('loader-error');
-      if(loader && errorDiv) {
-         document.querySelector('.loader-spinner').style.display = 'none';
-         errorDiv.style.display = 'block';
-         errorDiv.innerHTML += '<br><span style="font-size:10px;color:rgba(255,255,255,0.5)">' + msg + '</span>';
-      }
-      return false;
-    };
-
-    setTimeout(function() {
-      var loader = document.getElementById('initial-loader');
-      var errorDiv = document.getElementById('loader-error');
-      if(loader && loader.style.opacity !== '0' && errorDiv) {
-         errorDiv.style.display = 'block';
-      }
-    }, 10000);
+    window.onerror = function(msg) { var loader = document.getElementById('initial-loader'); var errorDiv = document.getElementById('loader-error'); if(loader && errorDiv) { document.querySelector('.loader-spinner').style.display = 'none'; errorDiv.style.display = 'block'; errorDiv.innerHTML += '<br><span style="font-size:10px;color:#888">' + msg + '</span>'; } return false; };
+    setTimeout(function() { var loader = document.getElementById('initial-loader'); if(loader && loader.style.opacity !== '0') { document.getElementById('loader-error').style.display = 'block'; } }, 10000);
   </script>
 <script type="module" src="/index.tsx"></script>
 </body>

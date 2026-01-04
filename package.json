@@ -1,3 +1,4 @@
+
 {
   "name": "student-manager-app",
   "version": "3.3.0",
@@ -34,7 +35,9 @@
     "react-dom": "18.2.0",
     "recharts": "^2.12.7",
     "xlsx": "^0.18.5",
-    "framer-motion": "^10.16.4"
+    "framer-motion": "^10.16.4",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",

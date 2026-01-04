@@ -1,3 +1,4 @@
+
 {
   "appId": "com.madrasati.app",
   "appName": "راصد",
@@ -6,10 +7,7 @@
     "androidScheme": "https",
     "cleartext": true,
     "allowNavigation": [
-      "*",
-      "*.moe.gov.om",
-      "mobile.moe.gov.om",
-      "lms.moe.gov.om"
+      "*"
     ]
   },
   "plugins": {
@@ -23,7 +21,7 @@
     "backgroundColor": "#f2f2f7"
   },
   "ios": {
-    "contentInset": "always",
+    "contentInset": "automatic",
     "backgroundColor": "#f2f2f7",
     "allowsBackForwardNavigationGestures": true
   }
