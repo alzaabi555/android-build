@@ -96,7 +96,11 @@ const SummonPage: React.FC = () => {
                  window.electron.openExternal(`whatsapp://send?phone=${cleanPhone}&text=${msg}`);
              } else {
                  const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-                 window.open(url, '_blank');
+                 try {
+                     window.open(url, '_blank');
+                 } catch (e) {
+                     window.open(url, '_blank');
+                 }
              }
         }
 

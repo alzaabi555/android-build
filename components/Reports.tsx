@@ -482,17 +482,12 @@ const Reports: React.FC = () => {
 
         const msg = encodeURIComponent(`السلام عليكم، مرفق خطاب استدعاء للطالب ${student.name}.`);
         
-        // WhatsApp doesn't support sending PDF base64 directly via URL scheme easily.
-        // Best approach for this button in a web/hybrid context:
-        // 1. Save PDF (Mobile) or Download (Web)
-        // 2. Open WhatsApp with text, user attaches file manually.
-        
+        // Mobile: Share PDF
         if (Capacitor.isNativePlatform()) {
              const base64Data = pdfDataUri.split(',')[1];
              const fileName = `Summon_${student.name}.pdf`;
              const result = await Filesystem.writeFile({ path: fileName, data: base64Data, directory: Directory.Cache });
              
-             // Share the PDF directly to WhatsApp if possible
              await Share.share({ 
                  title: 'خطاب استدعاء', 
                  text: `خطاب استدعاء للطالب ${student.name}`,
@@ -500,9 +495,20 @@ const Reports: React.FC = () => {
                  dialogTitle: 'إرسال عبر واتساب'
              });
         } else {
+             // Web/Desktop: Download PDF and open WhatsApp
              pdf.save(`Summon_${student.name}.pdf`);
-             const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-             window.open(url, '_blank');
+             
+             // استخدام نفس المنطق القوي الموجود في التفعيل
+             if (window.electron) {
+                 window.electron.openExternal(`whatsapp://send?phone=${cleanPhone}&text=${msg}`);
+             } else {
+                 const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+                 try {
+                     window.open(universalUrl, '_blank');
+                 } catch (e) {
+                     window.open(universalUrl, '_blank');
+                 }
+             }
         }
 
     } catch (e) { console.error(e); alert('Error generating PDF'); } finally { setIsGeneratingPdf(false); }
