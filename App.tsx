@@ -26,6 +26,8 @@ import { Capacitor } from '@capacitor/core';
 
 // --- SECRET SALT (سر الخلطة) ---
 const SECRET_SALT = "RASED_APP_SECURE_2025_OMAN";
+// --- MASTER KEY (كود المطور) ---
+const MASTER_CODE = "9834-4555"; 
 
 // --- Error Boundary ---
 interface ErrorBoundaryProps {
@@ -89,6 +91,13 @@ const AppContent: React.FC = () => {
       return `${codePart.substring(0, 4)}-${codePart.substring(4, 8)}`;
   };
 
+  // وظيفة تنظيف الكود للمقارنة المرنة
+  const normalizeCode = (code: string) => {
+      if (!code) return '';
+      // إزالة أي شيء ليس حرفاً أو رقماً (المسافات، الشرطات، الرموز) وتحويل للأحرف الكبيرة
+      return code.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  };
+
   // --- Persistent Auth Logic ---
   const AUTH_FILE = 'rased_auth_v1.json';
 
@@ -136,10 +145,15 @@ const AppContent: React.FC = () => {
 
           setDeviceId(storedId);
 
-          // 4. Validate Code
+          // 4. Validate Code (مع المقارنة المرنة)
           if (storedCode) {
               const validCode = generateValidCode(storedId);
-              if (storedCode === validCode) {
+              
+              const cleanStored = normalizeCode(storedCode);
+              const cleanValid = normalizeCode(validCode);
+              const cleanMaster = normalizeCode(MASTER_CODE);
+
+              if (cleanStored === cleanValid || cleanStored === cleanMaster) {
                   setIsActivated(true);
               }
           }
@@ -151,7 +165,14 @@ const AppContent: React.FC = () => {
 
   const handleActivateApp = (code: string): boolean => {
       const validCode = generateValidCode(deviceId);
-      if (code === validCode) {
+      
+      // التطبيع: تنظيف المدخلات من المسافات والرموز الزائدة
+      const cleanInput = normalizeCode(code);
+      const cleanValid = normalizeCode(validCode);
+      const cleanMaster = normalizeCode(MASTER_CODE);
+      
+      // المقارنة الآن تتم على الأحرف والأرقام فقط
+      if (cleanInput === cleanValid || cleanInput === cleanMaster) {
           // Save to LocalStorage
           localStorage.setItem('rased_activation_code', code);
           
@@ -392,7 +413,6 @@ const AppContent: React.FC = () => {
             </div>
 
             {/* Scrollable Area */}
-            {/* تم زيادة مساحة الحشو السفلية لضمان عدم تغطية المحتوى بواسطة الشريط السفلي */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 custom-scrollbar scroll-smooth pb-32 md:pb-6">
                 <div className="max-w-7xl mx-auto h-full">
                     {renderContent()}
@@ -400,7 +420,6 @@ const AppContent: React.FC = () => {
             </div>
 
             {/* --- IPHONE BOTTOM BAR (Mobile Only) --- */}
-            {/* تم تعديل التموضع ليكون فوق منطقة الأمان باستخدام calc() بدلاً من وضعه داخلها */}
             <div 
                 className="md:hidden fixed left-4 right-4 z-50 transition-all duration-300 ease-out"
                 style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
