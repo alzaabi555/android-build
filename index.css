@@ -18,17 +18,17 @@ body {
 }
 
 /* --- FORCE WHITE TEXT OVERRIDES (UI ONLY) --- */
-/* Apply white text generally, BUT EXCLUDE items inside .force-print-style */
-body :not(.force-print-style):not(.force-print-style *) {
+/* Apply white text generally, BUT EXCLUDE items inside .force-print-style AND .user-guide-wrapper */
+body :not(.force-print-style):not(.force-print-style *):not(.user-guide-wrapper):not(.user-guide-wrapper *) {
     --tw-text-opacity: 1 !important;
     color: #ffffff !important; 
 }
 
-/* Ensure these classes force white ONLY outside of print context */
-:not(.force-print-style) > .text-slate-900, 
-:not(.force-print-style) > .text-slate-800, 
-:not(.force-print-style) > .text-gray-900, 
-:not(.force-print-style) > .text-black {
+/* Ensure these classes force white ONLY outside of excluded contexts */
+:not(.force-print-style):not(.user-guide-wrapper) > .text-slate-900, 
+:not(.force-print-style):not(.user-guide-wrapper) > .text-slate-800, 
+:not(.force-print-style):not(.user-guide-wrapper) > .text-gray-900, 
+:not(.force-print-style):not(.user-guide-wrapper) > .text-black {
     color: #ffffff !important;
 }
 
@@ -49,6 +49,23 @@ body :not(.force-print-style):not(.force-print-style *) {
     box-shadow: none !important;
     -webkit-text-fill-color: #000000 !important; /* Safari fix */
 }
+
+/* --- USER GUIDE STYLE --- */
+/* Allow dark text inside the user guide wrapper */
+.user-guide-wrapper {
+    background-color: #f8fafc !important; /* Slate 50 */
+    color: #0f172a !important; /* Slate 900 */
+}
+
+.user-guide-wrapper * {
+    color: inherit; /* Allow text colors to cascade naturally */
+}
+
+.user-guide-wrapper .text-indigo-600 { color: #4f46e5 !important; }
+.user-guide-wrapper .text-emerald-600 { color: #059669 !important; }
+.user-guide-wrapper .text-rose-600 { color: #e11d48 !important; }
+.user-guide-wrapper .text-slate-500 { color: #64748b !important; }
+.user-guide-wrapper .text-slate-600 { color: #475569 !important; }
 
 /* Restore specific colors inside reports if needed (keeping them readable on white) */
 .force-print-style .text-emerald-600 { color: #059669 !important; -webkit-text-fill-color: #059669 !important; }

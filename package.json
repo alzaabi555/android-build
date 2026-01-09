@@ -6,8 +6,8 @@
   "author": "Mohammed Al-Zaabi",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"npx tailwindcss -i ./index.css -o ./www/index.css --watch\" \"npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --sourcemap --watch --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"development\\\"\" \"npx capacitor-assets generate --icon-only && node copy-assets.js && electron .\"",
-    "build": "node -e \"require('fs').mkdirSync('www', {recursive: true})\" && npx tailwindcss -i ./index.css -o ./www/index.css --minify && npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"production\\\" && node copy-assets.js",
+    "dev": "concurrently \"npx tailwindcss -i ./index.css -o ./www/index.css --watch\" \"npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --sourcemap --watch --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"development\\\"\" \"npx capacitor-assets generate --icon-only && node ./copy-assets.js && electron .\"",
+    "build": "node -e \"require('fs').mkdirSync('www', {recursive: true})\" && npx tailwindcss -i ./index.css -o ./www/index.css --minify && npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"production\\\" && node ./copy-assets.js",
     "prebuild": "node -e \"require('fs').mkdirSync('www', {recursive: true})\"",
     "sync": "npx cap sync",
     "electron:dist": "npm run build && electron-builder"
