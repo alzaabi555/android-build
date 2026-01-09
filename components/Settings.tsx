@@ -142,7 +142,7 @@ const Settings: React.FC = () => {
       <div className="grid gap-6">
           
           {/* Backup Section */}
-          <div className="glass-card p-6 rounded-[2rem] border border-emerald-500/20 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
+          <div className="glass-card p-6 rounded-[2rem] border border-emerald-500/20 relative overflow-hidden group hover:border-emerald-500/40 transition-all shimmer-hover">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               
               <div className="flex items-start gap-4 relative z-10">
@@ -167,7 +167,7 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Restore Section */}
-          <div className="glass-card p-6 rounded-[2rem] border border-blue-500/20 relative overflow-hidden group hover:border-blue-500/40 transition-all">
+          <div className="glass-card p-6 rounded-[2rem] border border-blue-500/20 relative overflow-hidden group hover:border-blue-500/40 transition-all shimmer-hover">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               
               <div className="flex items-start gap-4 relative z-10">
@@ -193,7 +193,7 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Reset Section */}
-          <div className="glass-card p-6 rounded-[2rem] border border-rose-500/20 relative overflow-hidden group hover:border-rose-500/40 transition-all bg-rose-500/5">
+          <div className="glass-card p-6 rounded-[2rem] border border-rose-500/20 relative overflow-hidden group hover:border-rose-500/40 transition-all bg-rose-500/5 shimmer-hover">
               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               
               <div className="flex items-start gap-4 relative z-10">

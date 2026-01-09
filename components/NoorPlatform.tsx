@@ -46,7 +46,7 @@ const NoorPlatform: React.FC = () => {
       {/* Action Section */}
       <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
          
-         <div className="glass-card p-4 rounded-2xl border border-amber-500/20 w-full bg-amber-500/10">
+         <div className="glass-card p-4 rounded-2xl border border-amber-500/20 w-full bg-amber-500/10 shimmer-hover">
             <div className="flex gap-3 items-start">
                <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                <p className="text-[10px] font-bold text-amber-100/90 leading-relaxed text-right">
@@ -59,7 +59,7 @@ const NoorPlatform: React.FC = () => {
 
          <button 
             onClick={handleOpenPlatform}
-            className="group w-full bg-blue-600 hover:bg-blue-500 text-white rounded-2xl p-3 pl-4 flex items-center transition-all shadow-lg shadow-blue-500/30 active:scale-95 border border-blue-400/50"
+            className="group w-full bg-blue-600 hover:bg-blue-500 text-white rounded-2xl p-3 pl-4 flex items-center transition-all shadow-lg shadow-blue-500/30 active:scale-95 border border-blue-400/50 shimmer-hover"
          >
             <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors">
                 <ExternalLink className="w-6 h-6 text-white" />

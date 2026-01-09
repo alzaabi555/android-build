@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, GradeRecord, AssessmentTool } from '../types';
-import { Plus, Search, X, Trash2, Settings, Check, Loader2, Edit2, FileSpreadsheet, FileUp, Wand2 } from 'lucide-react';
+import { Plus, X, Trash2, Settings, Check, Loader2, Edit2, FileSpreadsheet, FileUp, Wand2 } from 'lucide-react';
 import Modal from './Modal';
 import { useApp } from '../context/AppContext';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -32,12 +32,9 @@ const GradeBook: React.FC<GradeBookProps> = ({
   
   const tools = useMemo(() => Array.isArray(assessmentTools) ? assessmentTools : [], [assessmentTools]);
 
-  const [selectedClass, setSelectedClass] = useState(() => {
-      if (Array.isArray(classes) && classes.length > 0) return classes[0];
-      return 'all';
-  });
+  const [selectedGrade, setSelectedGrade] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState('all');
 
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddGrade, setShowAddGrade] = useState<{ student: Student } | null>(null);
   const [editingGrade, setEditingGrade] = useState<GradeRecord | null>(null);
   
@@ -60,12 +57,13 @@ const GradeBook: React.FC<GradeBookProps> = ({
 
   const styles = {
       card: `
-        glass-card border border-white/20 rounded-[1.8rem] 
-        hover:border-indigo-400/30 hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 hover:bg-white/10
-        transition-all duration-300 relative overflow-hidden backdrop-blur-md
+        glass-card border border-indigo-500/40 rounded-[1.8rem] 
+        hover:border-indigo-400/50 hover:shadow-lg hover:shadow-indigo-500/20 hover:-translate-y-1 hover:bg-[#374151]
+        transition-all duration-300 relative overflow-hidden backdrop-blur-md bg-[#1f2937]
       `,
-      pill: 'rounded-xl border border-white/20 shadow-sm',
-      header: 'glass-heavy border-b border-white/20 shadow-lg backdrop-blur-xl rounded-[0_0_2.5rem_2.5rem] mb-6',
+      pill: 'rounded-xl border border-white/10 shadow-sm',
+      // Modified header to be sticky and safe
+      header: 'glass-heavy border-b border-white/10 shadow-lg backdrop-blur-xl -mx-4 -mt-4 px-4 pt-safe sticky top-0 z-30 bg-[#1f2937] pb-2',
   };
 
   useEffect(() => {
@@ -74,6 +72,26 @@ const GradeBook: React.FC<GradeBookProps> = ({
          setScore('');
      }
   }, [showAddGrade, editingGrade]);
+
+  // Logic: Extract unique Grades
+  const availableGrades = useMemo(() => {
+      const grades = new Set<string>();
+      students.forEach(s => {
+          if (s.grade) grades.add(s.grade);
+          else if (s.classes[0]) {
+              const match = s.classes[0].match(/^(\d+)/);
+              if (match) grades.add(match[1]);
+          }
+      });
+      if (grades.size === 0 && classes.length > 0) return ['عام']; 
+      return Array.from(grades).sort();
+  }, [students, classes]);
+
+  // Logic: Filter classes based on selected grade
+  const visibleClasses = useMemo(() => {
+      if (selectedGrade === 'all') return classes;
+      return classes.filter(c => c.startsWith(selectedGrade));
+  }, [classes, selectedGrade]);
 
   const cleanText = (text: string) => { if (!text) return ''; return String(text).trim(); };
   
@@ -105,24 +123,28 @@ const GradeBook: React.FC<GradeBookProps> = ({
   };
 
   const getSymbolColor = (score: number) => {
-      if (score >= 90) return 'text-emerald-500';
-      if (score >= 80) return 'text-blue-500';
-      if (score >= 65) return 'text-amber-500';
-      if (score >= 50) return 'text-orange-500';
-      return 'text-rose-500';
+      if (score >= 90) return 'text-emerald-400'; 
+      if (score >= 80) return 'text-blue-400';
+      if (score >= 65) return 'text-amber-400';
+      if (score >= 50) return 'text-orange-400';
+      return 'text-rose-400';
   };
 
   const filteredStudents = useMemo(() => {
     if (!Array.isArray(students)) return [];
     return students.filter(s => {
       if (!s || typeof s !== 'object') return false;
-      const name = String(s.name || '').toLowerCase();
-      const matchesSearch = name.includes(searchTerm.toLowerCase());
-      const studentClasses = Array.isArray(s.classes) ? s.classes : [];
-      const matchesClass = selectedClass === 'all' || studentClasses.includes(selectedClass);
-      return matchesSearch && matchesClass;
+      
+      const matchesClass = selectedClass === 'all' || (s.classes && s.classes.includes(selectedClass));
+      
+      let matchesGrade = true;
+      if (selectedGrade !== 'all') {
+          matchesGrade = s.grade === selectedGrade || (s.classes[0] && s.classes[0].startsWith(selectedGrade));
+      }
+
+      return matchesClass && matchesGrade;
     });
-  }, [students, searchTerm, selectedClass]);
+  }, [students, selectedClass, selectedGrade]);
 
   const getSemesterGrades = (student: Student, sem: '1' | '2') => { 
       if (!student || !Array.isArray(student.grades)) return []; 
@@ -344,34 +366,37 @@ const GradeBook: React.FC<GradeBookProps> = ({
       }
   };
 
-  const getActiveColumns = () => {
-    const columns = new Set<string>();
-    tools.forEach(t => columns.add(t.name.trim()));
-    filteredStudents.forEach(s => {
-        getSemesterGrades(s, currentSemester).forEach(g => {
-            if (g.category) columns.add(g.category.trim());
-        });
-    });
-    return Array.from(columns).sort();
-  };
-
   const handleExportExcel = async () => {
       if (filteredStudents.length === 0) { alert('لا يوجد طلاب'); return; }
       setIsExporting(true);
       try {
-          const activeColumns = getActiveColumns();
+          const finalExamName = "الامتحان النهائي";
+          const continuousTools = tools.filter(t => t.name.trim() !== finalExamName);
+          const finalTool = tools.find(t => t.name.trim() === finalExamName);
 
           const data = filteredStudents.map(student => {
               const row: any = { 'الاسم': student.name, 'الصف': student.classes[0] || '' };
               const semGrades = getSemesterGrades(student, currentSemester);
               
-              activeColumns.forEach(colName => {
-                  const grade = semGrades.find(g => g.category.trim() === colName);
-                  row[colName] = grade ? grade.score : '';
+              let continuousSum = 0;
+              continuousTools.forEach(tool => {
+                  const grade = semGrades.find(g => g.category.trim() === tool.name.trim());
+                  const val = grade ? Number(grade.score) : 0;
+                  row[tool.name] = grade ? grade.score : '';
+                  continuousSum += val;
               });
 
-              const total = semGrades.reduce((acc, g) => acc + (Number(g.score) || 0), 0);
-              row['المجموع'] = total;
+              row['المجموع (60)'] = continuousSum;
+
+              let finalScore = 0;
+              if (finalTool) {
+                  const grade = semGrades.find(g => g.category.trim() === finalTool.name.trim());
+                  finalScore = grade ? Number(grade.score) : 0;
+                  row[`${finalTool.name} (40)`] = grade ? grade.score : '';
+              }
+
+              const total = continuousSum + finalScore;
+              row['المجموع الكلي'] = total;
               row['التقدير'] = getGradeSymbol(total);
               return row;
           });
@@ -391,78 +416,68 @@ const GradeBook: React.FC<GradeBookProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] text-slate-900 dark:text-white pb-20">
+    <div className="flex flex-col h-[calc(100vh-80px)] text-white pb-20">
         
-        {/* Header Section */}
+        {/* Sticky Header */}
         <div className={styles.header}>
-            <div className="p-4 pt-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-black text-slate-800 dark:text-white drop-shadow-sm">سجل الدرجات</h1>
-                    <div className="flex gap-2">
-                        <label className="w-10 h-10 rounded-full glass-icon text-emerald-600 dark:text-emerald-400 active:scale-95 transition-transform flex items-center justify-center cursor-pointer shadow-md border border-white/20 hover:scale-105" title="استيراد Excel">
-                             {isImporting ? <Loader2 className="w-5 h-5 animate-spin"/> : <FileUp className="w-5 h-5"/>}
-                             <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
-                        </label>
-                        <button onClick={handleExportExcel} disabled={isExporting} className="w-10 h-10 rounded-full glass-icon text-indigo-600 dark:text-indigo-400 active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="تصدير Excel">
-                            {isExporting ? <Loader2 className="w-5 h-5 animate-spin"/> : <FileSpreadsheet className="w-5 h-5"/>}
-                        </button>
-                        <button onClick={handleClearGrades} className="w-10 h-10 rounded-full glass-icon text-rose-600 dark:text-rose-400 active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="حذف درجات الفصل الحالي">
-                            <Trash2 className="w-5 h-5"/>
-                        </button>
-                        <button onClick={() => setShowToolsManager(true)} className="w-10 h-10 rounded-full glass-icon text-slate-600 dark:text-white/80 active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="إعدادات أدوات التقويم">
-                            <Settings className="w-5 h-5"/>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Filters */}
-                <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 max-w-[70%]">
-                        <button onClick={() => setSelectedClass('all')} className={`px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${selectedClass === 'all' ? 'bg-indigo-600 text-white shadow-indigo-500/30' : 'glass-card text-slate-600 dark:text-white/60 hover:bg-white/10'} ${styles.pill}`}>الكل</button>
-                        {classes.map(c => (
-                            <button key={c} onClick={() => setSelectedClass(c)} className={`px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${selectedClass === c ? 'bg-indigo-600 text-white shadow-indigo-500/30' : 'glass-card text-slate-600 dark:text-white/60 hover:bg-white/10'} ${styles.pill}`}>{c}</button>
-                        ))}
-                    </div>
-                    
-                    <button 
-                        onClick={() => onSemesterChange(currentSemester === '1' ? '2' : '1')}
-                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-sm border ${currentSemester === '1' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
-                    >
-                        فصل {currentSemester}
+            <div className="flex justify-between items-center mb-3 pt-4">
+                <h1 className="text-2xl font-black text-white">سجل الدرجات</h1>
+                <div className="flex gap-2">
+                    <label className="w-9 h-9 rounded-full glass-icon text-emerald-400 active:scale-95 transition-transform flex items-center justify-center cursor-pointer shadow-md border border-white/20 hover:scale-105" title="استيراد Excel">
+                            {isImporting ? <Loader2 className="w-4 h-4 animate-spin"/> : <FileUp className="w-4 h-4"/>}
+                            <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
+                    </label>
+                    <button onClick={handleExportExcel} disabled={isExporting} className="w-9 h-9 rounded-full glass-icon text-indigo-400 active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="تصدير Excel">
+                        {isExporting ? <Loader2 className="w-4 h-4 animate-spin"/> : <FileSpreadsheet className="w-4 h-4"/>}
+                    </button>
+                    <button onClick={handleClearGrades} className="w-9 h-9 rounded-full glass-icon text-rose-400 active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="حذف درجات الفصل الحالي">
+                        <Trash2 className="w-4 h-4"/>
+                    </button>
+                    <button onClick={() => setShowToolsManager(true)} className="w-9 h-9 rounded-full glass-icon text-white active:scale-95 transition-transform shadow-md border border-white/20 hover:scale-105" title="إعدادات أدوات التقويم">
+                        <Settings className="w-4 h-4"/>
                     </button>
                 </div>
+            </div>
 
-                <div className="relative">
-                    <Search className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 dark:text-white/40" />
-                    <input 
-                        type="text" 
-                        placeholder="بحث عن طالب..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full glass-input rounded-xl py-2 pr-9 pl-4 text-xs font-bold outline-none border border-white/10 focus:border-indigo-500/50 text-slate-900 dark:text-white shadow-inner" 
-                    />
+            {/* Hierarchical Filters */}
+            <div className="space-y-2 mb-2">
+                {/* Grades */}
+                {availableGrades.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                        <button onClick={() => { setSelectedGrade('all'); setSelectedClass('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap transition-all rounded-lg border ${selectedGrade === 'all' ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>كل المراحل</button>
+                        {availableGrades.map(g => (
+                            <button key={g} onClick={() => { setSelectedGrade(g); setSelectedClass('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap transition-all rounded-lg border ${selectedGrade === g ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>صف {g}</button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Classes */}
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {visibleClasses.map(c => (
+                        <button key={c} onClick={() => setSelectedClass(c)} className={`px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${selectedClass === c ? 'bg-indigo-600 text-white shadow-indigo-500/50' : 'glass-card text-white hover:bg-white/10'} ${styles.pill}`}>{c}</button>
+                    ))}
                 </div>
             </div>
 
             {/* Assessment Tools Quick Bar */}
-            <div className="px-4 pb-4 overflow-x-auto no-scrollbar flex gap-2">
+            <div className="overflow-x-auto no-scrollbar flex gap-2 pt-1">
                 {tools.length > 0 ? tools.map(tool => (
                     <button 
                         key={tool.id}
                         onClick={() => { setBulkFillTool(tool); setBulkScore(''); }}
-                        className="px-3 py-1.5 glass-card rounded-lg text-[10px] font-bold text-slate-600 dark:text-white/70 whitespace-nowrap hover:bg-white/10 border border-white/10 flex items-center gap-1 active:scale-95 shadow-sm"
+                        className="px-3 py-1.5 glass-card rounded-lg text-[10px] font-bold text-white whitespace-nowrap hover:bg-white/10 border border-white/10 flex items-center gap-1 active:scale-95 shadow-sm"
                     >
                         <Wand2 className="w-3 h-3 text-indigo-400" />
                         رصد {tool.name}
                     </button>
                 )) : (
-                    <span className="text-[10px] text-slate-400 dark:text-white/40 font-bold px-2">قم بإضافة أدوات تقويم (مثل: اختبار قصير) للبدء</span>
+                    <span className="text-[10px] text-white font-bold px-2">قم بإضافة أدوات تقويم للبدء</span>
                 )}
             </div>
         </div>
 
         {/* Content - Student List */}
-        <div className="flex-1 overflow-y-auto px-4 pb-20 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 pb-20 custom-scrollbar pt-2">
             {filteredStudents.length > 0 ? (
                 <div className="grid grid-cols-1 gap-3">
                     {filteredStudents.map((student) => {
@@ -475,16 +490,16 @@ const GradeBook: React.FC<GradeBookProps> = ({
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none"></div>
 
                                 <div className="flex items-center gap-3 relative z-10">
-                                    <div className="w-12 h-12 rounded-full glass-icon flex items-center justify-center font-bold text-slate-700 dark:text-white/80 overflow-hidden shadow-md border border-white/20 group-hover:border-indigo-300/50">
+                                    <div className="w-12 h-12 rounded-full bg-[#111827] flex items-center justify-center font-bold text-white overflow-hidden shadow-md border border-white/20 group-hover:border-indigo-400">
                                         {student.avatar ? <img src={student.avatar} className="w-full h-full object-cover"/> : student.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-black text-slate-800 dark:text-white group-hover:text-indigo-500 dark:group-hover:text-indigo-300 transition-colors">{student.name}</h3>
+                                        <h3 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">{student.name}</h3>
                                         <div className="flex items-center gap-2 mt-1">
                                             {tools.slice(0, 3).map(tool => {
                                                 const grade = semGrades.find(g => g.category.trim() === tool.name.trim());
                                                 return (
-                                                    <span key={tool.id} className="text-[9px] px-2 py-0.5 rounded-lg glass-card border border-white/10 text-slate-500 dark:text-white/60">
+                                                    <span key={tool.id} className="text-[9px] px-2 py-0.5 rounded-lg bg-[#111827] border border-white/10 text-gray-300">
                                                         {tool.name}: {grade ? grade.score : '-'}
                                                     </span>
                                                 )
@@ -492,17 +507,17 @@ const GradeBook: React.FC<GradeBookProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="text-center bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 shadow-inner group-hover:bg-white/10 transition-colors relative z-10">
+                                <div className="text-center bg-[#111827] px-3 py-1.5 rounded-xl border border-white/10 shadow-inner group-hover:bg-[#374151] transition-colors relative z-10">
                                     <span className={`block text-xl font-black ${getSymbolColor(totalScore)}`}>{totalScore}</span>
-                                    <span className="text-[9px] font-bold text-slate-400 dark:text-white/40">{getGradeSymbol(totalScore)}</span>
+                                    <span className="text-[9px] font-bold text-gray-400">{getGradeSymbol(totalScore)}</span>
                                 </div>
                             </div>
                         );
                     })}
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-white/30">
-                    <FileSpreadsheet className="w-16 h-16 mb-4 opacity-50" />
+                <div className="flex flex-col items-center justify-center py-20 text-white opacity-50">
+                    <FileSpreadsheet className="w-16 h-16 mb-4" />
                     <p className="font-bold">لا يوجد طلاب مطابقين</p>
                 </div>
             )}
@@ -513,16 +528,16 @@ const GradeBook: React.FC<GradeBookProps> = ({
         {/* 1. Add/Edit Grade Modal */}
         <Modal isOpen={!!showAddGrade} onClose={() => { setShowAddGrade(null); setEditingGrade(null); setScore(''); }} className="max-w-sm rounded-[2rem]">
             {showAddGrade && (
-                <div className="text-center">
-                    <h3 className="font-black text-lg text-slate-900 dark:text-white mb-1">{showAddGrade.student.name}</h3>
-                    <p className="text-xs text-slate-500 dark:text-white/60 font-bold mb-6">رصد درجة جديدة - فصل {currentSemester}</p>
+                <div className="text-center text-white">
+                    <h3 className="font-black text-lg mb-1">{showAddGrade.student.name}</h3>
+                    <p className="text-xs text-gray-400 font-bold mb-6">رصد درجة جديدة - فصل {currentSemester}</p>
                     
                     <div className="grid grid-cols-2 gap-2 mb-4">
                         {tools.map(tool => (
                             <button 
                                 key={tool.id} 
                                 onClick={() => setSelectedToolId(tool.id)}
-                                className={`p-3 rounded-xl text-xs font-black transition-all border ${selectedToolId === tool.id ? 'bg-indigo-600 text-white border-transparent shadow-md' : 'glass-card text-slate-600 dark:text-white/70 border-white/10 hover:bg-white/10'}`}
+                                className={`p-3 rounded-xl text-xs font-black transition-all border ${selectedToolId === tool.id ? 'bg-indigo-600 text-white border-transparent shadow-md' : 'glass-card bg-[#374151] text-gray-300 border-white/10 hover:bg-[#4b5563]'}`}
                             >
                                 {tool.name}
                             </button>
@@ -534,7 +549,7 @@ const GradeBook: React.FC<GradeBookProps> = ({
                             type="number" 
                             autoFocus
                             placeholder="الدرجة" 
-                            className="flex-1 glass-input rounded-xl p-3 text-center text-lg font-black outline-none border border-white/10 focus:border-indigo-500 text-slate-900 dark:text-white shadow-inner"
+                            className="flex-1 glass-input rounded-xl p-3 text-center text-lg font-black outline-none border border-white/10 focus:border-indigo-500 text-white shadow-inner bg-[#111827]"
                             value={score}
                             onChange={(e) => setScore(e.target.value)}
                         />
@@ -543,18 +558,18 @@ const GradeBook: React.FC<GradeBookProps> = ({
 
                     {/* Existing Grades List */}
                     <div className="border-t border-white/10 pt-4 mt-2">
-                        <p className="text-[10px] font-bold text-right mb-2 text-slate-400 dark:text-white/40">الدرجات المرصودة:</p>
+                        <p className="text-[10px] font-bold text-right mb-2 text-gray-400">الدرجات المرصودة:</p>
                         <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
                             {getSemesterGrades(showAddGrade.student, currentSemester).length > 0 ? getSemesterGrades(showAddGrade.student, currentSemester).map(g => (
-                                <div key={g.id} className="flex items-center justify-between p-2 rounded-lg glass-card border border-white/5 hover:bg-white/5">
-                                    <span className="text-xs font-bold text-slate-700 dark:text-white">{g.category}</span>
+                                <div key={g.id} className="flex items-center justify-between p-2 rounded-lg glass-card bg-[#374151] border border-white/5 hover:bg-[#4b5563]">
+                                    <span className="text-xs font-bold text-white">{g.category}</span>
                                     <div className="flex items-center gap-2">
-                                        <span className="font-black text-indigo-500">{g.score}</span>
-                                        <button onClick={() => handleEditGrade(g)} className="p-1 text-slate-400 hover:text-indigo-400"><Edit2 className="w-3 h-3"/></button>
-                                        <button onClick={() => handleDeleteGrade(g.id)} className="p-1 text-slate-400 hover:text-rose-400"><Trash2 className="w-3 h-3"/></button>
+                                        <span className="font-black text-indigo-400">{g.score}</span>
+                                        <button onClick={() => handleEditGrade(g)} className="p-1 text-gray-400 hover:text-indigo-400"><Edit2 className="w-3 h-3"/></button>
+                                        <button onClick={() => handleDeleteGrade(g.id)} className="p-1 text-gray-400 hover:text-rose-400"><Trash2 className="w-3 h-3"/></button>
                                     </div>
                                 </div>
-                            )) : <p className="text-[10px] text-slate-400">لا توجد درجات</p>}
+                            )) : <p className="text-[10px] text-gray-500">لا توجد درجات</p>}
                         </div>
                     </div>
                 </div>
@@ -563,10 +578,10 @@ const GradeBook: React.FC<GradeBookProps> = ({
 
         {/* 2. Tools Manager Modal */}
         <Modal isOpen={showToolsManager} onClose={() => { setShowToolsManager(false); setIsAddingTool(false); }} className="max-w-sm rounded-[2rem]">
-            <div className="text-center">
+            <div className="text-center text-white">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-black text-lg text-slate-900 dark:text-white">أدوات التقويم</h3>
-                    <button onClick={() => { setShowToolsManager(false); setIsAddingTool(false); }} className="p-2 glass-icon rounded-full hover:bg-white/20"><X className="w-5 h-5 text-slate-500 dark:text-white/60"/></button>
+                    <h3 className="font-black text-lg">أدوات التقويم</h3>
+                    <button onClick={() => { setShowToolsManager(false); setIsAddingTool(false); }} className="p-2 glass-icon rounded-full hover:bg-white/20"><X className="w-5 h-5 text-white"/></button>
                 </div>
 
                 {!isAddingTool ? (
@@ -577,16 +592,16 @@ const GradeBook: React.FC<GradeBookProps> = ({
 
                         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
                             {tools.length > 0 ? tools.map(tool => (
-                                <div key={tool.id} className="flex items-center justify-between p-3 glass-card rounded-xl border border-white/10 group">
+                                <div key={tool.id} className="flex items-center justify-between p-3 glass-card bg-[#374151] rounded-xl border border-white/10 group">
                                     {editingToolId === tool.id ? (
                                         <div className="flex gap-2 w-full">
-                                            <input autoFocus value={editToolName} onChange={e => setEditToolName(e.target.value)} className="flex-1 glass-input rounded-lg px-2 text-xs font-bold" />
+                                            <input autoFocus value={editToolName} onChange={e => setEditToolName(e.target.value)} className="flex-1 glass-input bg-[#111827] rounded-lg px-2 text-xs font-bold text-white" />
                                             <button onClick={saveEditedTool} className="p-1.5 bg-emerald-500 text-white rounded-lg"><Check className="w-3 h-3"/></button>
                                             <button onClick={cancelEditingTool} className="p-1.5 bg-slate-500 text-white rounded-lg"><X className="w-3 h-3"/></button>
                                         </div>
                                     ) : (
                                         <>
-                                            <span className="text-xs font-bold text-slate-700 dark:text-white">{tool.name}</span>
+                                            <span className="text-xs font-bold text-white">{tool.name}</span>
                                             <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => startEditingTool(tool)} className="p-1.5 hover:bg-white/10 rounded-lg"><Edit2 className="w-3 h-3 text-blue-400"/></button>
                                                 <button onClick={() => handleDeleteTool(tool.id)} className="p-1.5 hover:bg-white/10 rounded-lg"><Trash2 className="w-3 h-3 text-rose-400"/></button>
@@ -594,7 +609,7 @@ const GradeBook: React.FC<GradeBookProps> = ({
                                         </>
                                     )}
                                 </div>
-                            )) : <p className="text-xs text-slate-400 dark:text-white/40 py-4">لا توجد أدوات مضافة</p>}
+                            )) : <p className="text-xs text-gray-500 py-4">لا توجد أدوات مضافة</p>}
                         </div>
                     </>
                 ) : (
@@ -604,10 +619,10 @@ const GradeBook: React.FC<GradeBookProps> = ({
                             placeholder="اسم الأداة (مثال: اختبار قصير 1)" 
                             value={newToolName} 
                             onChange={e => setNewToolName(e.target.value)} 
-                            className="w-full p-4 glass-input rounded-2xl mb-4 font-bold text-sm outline-none border-white/10 focus:border-indigo-500"
+                            className="w-full p-4 glass-input bg-[#111827] rounded-2xl mb-4 font-bold text-sm outline-none border-white/10 focus:border-indigo-500 text-white"
                         />
                         <div className="flex gap-2">
-                            <button onClick={() => setIsAddingTool(false)} className="flex-1 py-3 glass-card text-slate-500 dark:text-white/60 font-bold text-xs rounded-xl">إلغاء</button>
+                            <button onClick={() => setIsAddingTool(false)} className="flex-1 py-3 glass-card bg-[#374151] text-gray-300 font-bold text-xs rounded-xl">إلغاء</button>
                             <button onClick={handleAddTool} className="flex-[2] py-3 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-500/30">حفظ الأداة</button>
                         </div>
                     </div>
@@ -618,19 +633,19 @@ const GradeBook: React.FC<GradeBookProps> = ({
         {/* 3. Bulk Fill Modal */}
         <Modal isOpen={!!bulkFillTool} onClose={() => { setBulkFillTool(null); setBulkScore(''); }} className="max-w-xs rounded-[2rem]">
             {bulkFillTool && (
-                <div className="text-center">
-                    <div className="w-12 h-12 glass-icon rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-500 shadow-md border border-white/20">
+                <div className="text-center text-white">
+                    <div className="w-12 h-12 glass-icon rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-400 shadow-md border border-white/20 bg-[#374151]">
                         <Wand2 className="w-6 h-6" />
                     </div>
-                    <h3 className="font-black text-lg text-slate-900 dark:text-white mb-1">رصد جماعي</h3>
-                    <p className="text-xs text-indigo-500 font-bold mb-4">{bulkFillTool.name}</p>
-                    <p className="text-[10px] text-slate-400 dark:text-white/40 mb-4 px-2">سيتم رصد هذه الدرجة لجميع الطلاب الظاهرين في القائمة الحالية (الذين لم ترصد لهم درجة لهذه الأداة بعد).</p>
+                    <h3 className="font-black text-lg mb-1">رصد جماعي</h3>
+                    <p className="text-xs text-indigo-400 font-bold mb-4">{bulkFillTool.name}</p>
+                    <p className="text-[10px] text-gray-400 mb-4 px-2">سيتم رصد هذه الدرجة لجميع الطلاب الظاهرين في القائمة الحالية (الذين لم ترصد لهم درجة لهذه الأداة بعد).</p>
                     
                     <input 
                         type="number" 
                         autoFocus
                         placeholder="الدرجة" 
-                        className="w-full glass-input rounded-xl p-3 text-center text-lg font-black outline-none border border-white/10 focus:border-indigo-500 mb-4 text-slate-900 dark:text-white shadow-inner"
+                        className="w-full glass-input bg-[#111827] rounded-xl p-3 text-center text-lg font-black outline-none border border-white/10 focus:border-indigo-500 mb-4 text-white shadow-inner"
                         value={bulkScore}
                         onChange={(e) => setBulkScore(e.target.value)}
                     />

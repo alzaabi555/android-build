@@ -145,7 +145,7 @@ const GroupCompetition: React.FC<GroupCompetitionProps> = ({ students, classes, 
                     const membersCount = getTeamStudents(group.id).length;
 
                     return (
-                        <div key={group.id} className={`relative p-3 md:p-5 transition-all duration-300 ${styles.card} ${isLeader ? 'border-amber-400 scale-[1.02] shadow-[0_0_30px_rgba(251,191,36,0.3)]' : ''}`}>
+                        <div key={group.id} className={`relative p-3 md:p-5 transition-all duration-300 shimmer-hover ${styles.card} ${isLeader ? 'border-amber-400 scale-[1.02] shadow-[0_0_30px_rgba(251,191,36,0.3)]' : ''}`}>
                             {isLeader && (<div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-black px-2 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-sm z-10 whitespace-nowrap"><Crown className="w-2.5 h-2.5 fill-black" /> المتصدر</div>)}
                             <div className={`h-16 md:h-24 rounded-2xl md:rounded-[2rem] ${style.light} flex items-center justify-between px-3 md:px-6 mb-3 relative overflow-hidden border ${style.border}`}>
                                 <div className="z-10"><h3 className={`font-black text-sm md:text-lg ${style.text}`}>{group.name}</h3></div>
@@ -173,7 +173,7 @@ const GroupCompetition: React.FC<GroupCompetitionProps> = ({ students, classes, 
                         const style = getStyle(group.color);
                         const memberCount = getTeamStudents(group.id).length;
                         return (
-                            <button key={group.id} onClick={() => openManageGroup(group)} className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 hover:bg-white/5 ${style.light} ${style.border}`}>
+                            <button key={group.id} onClick={() => openManageGroup(group)} className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 hover:bg-white/5 shimmer-hover ${style.light} ${style.border}`}>
                                 <div className={`w-12 h-12 rounded-full ${style.bg} text-white flex items-center justify-center mb-3 shadow-md`}><Edit2 className="w-5 h-5" /></div>
                                 <h3 className={`font-black text-lg ${style.text} mb-1`}>{group.name}</h3>
                                 <span className="text-[10px] font-bold text-slate-500 dark:text-white/60 glass-card px-3 py-1 rounded-full">{memberCount} طالب</span>

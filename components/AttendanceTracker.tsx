@@ -1,12 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Student, AttendanceStatus } from '../types';
-import { Check, X, Clock, Calendar, MessageCircle, ChevronDown, Search, Loader2, Share2, DoorOpen, UserCircle2 } from 'lucide-react';
+import { Check, X, Clock, Calendar, MessageCircle, ChevronDown, Loader2, Share2, DoorOpen, UserCircle2, ArrowUpDown } from 'lucide-react';
 import { Browser } from '@capacitor/browser';
 import * as XLSX from 'xlsx';
-import { motion } from 'framer-motion';
 import Modal from './Modal';
-import { useTheme } from '../context/ThemeContext';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
@@ -18,13 +16,11 @@ interface AttendanceTrackerProps {
 }
 
 const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes, setStudents }) => {
-  const { theme, isLowPower } = useTheme();
   const today = new Date().toLocaleDateString('en-CA'); 
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [classFilter, setClassFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  
   const [notificationTarget, setNotificationTarget] = useState<{student: Student, type: 'absent' | 'late' | 'truant'} | null>(null);
 
   const formatDateDisplay = (dateString: string) => {
@@ -61,9 +57,15 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       }
       
       setStudents(prev => prev.map(s => {
-          if (classFilter !== 'all' && (!s.classes || !s.classes.includes(classFilter))) {
-              return s;
+          // Check filters
+          const matchesClass = classFilter === 'all' || s.classes.includes(classFilter);
+          let matchesGrade = true;
+          if (selectedGrade !== 'all') {
+              matchesGrade = s.grade === selectedGrade || (s.classes[0] && s.classes[0].startsWith(selectedGrade));
           }
+
+          if (!matchesClass || !matchesGrade) return s;
+
           const filtered = s.attendance.filter(a => a.date !== selectedDate);
           if (status === 'reset') {
               return { ...s, attendance: filtered };
@@ -75,13 +77,36 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       }));
   };
 
+  // Logic: Extract unique Grades
+  const availableGrades = useMemo(() => {
+      const grades = new Set<string>();
+      students.forEach(s => {
+          if (s.grade) grades.add(s.grade);
+          else if (s.classes[0]) {
+              const match = s.classes[0].match(/^(\d+)/);
+              if (match) grades.add(match[1]);
+          }
+      });
+      if (grades.size === 0 && classes.length > 0) return ['عام']; 
+      return Array.from(grades).sort();
+  }, [students, classes]);
+
+  // Logic: Filter classes based on selected grade
+  const visibleClasses = useMemo(() => {
+      if (selectedGrade === 'all') return classes;
+      return classes.filter(c => c.startsWith(selectedGrade));
+  }, [classes, selectedGrade]);
+
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
       const matchesClass = classFilter === 'all' || s.classes.includes(classFilter);
-      const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesClass && matchesSearch;
+      let matchesGrade = true;
+      if (selectedGrade !== 'all') {
+          matchesGrade = s.grade === selectedGrade || (s.classes[0] && s.classes[0].startsWith(selectedGrade));
+      }
+      return matchesClass && matchesGrade;
     });
-  }, [students, classFilter, searchQuery]);
+  }, [students, classFilter, selectedGrade]);
 
   const stats = useMemo(() => {
       const present = filteredStudents.filter(s => getStatus(s) === 'present').length;
@@ -101,7 +126,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
       if (!cleanPhone || cleanPhone.length < 5) return alert('رقم الهاتف غير صحيح');
       
-      // Smart Phone Formatting for Oman/General
       if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
       if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
       else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
@@ -115,7 +139,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
       const msg = encodeURIComponent(`السلام عليكم، نود إشعاركم بأن الطالب ${student.name} تم تسجيل حالة: *${statusText}* اليوم (${dateText}). نرجو المتابعة.`);
       
       if (method === 'whatsapp') {
-          // --- PROVEN ROBUST WHATSAPP LOGIC ---
           if (window.electron) {
              window.electron.openExternal(`whatsapp://send?phone=${cleanPhone}&text=${msg}`);
           } else {
@@ -176,167 +199,160 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
   };
 
   return (
-    <div className="flex flex-col h-full -mt-2 text-slate-900 dark:text-white relative">
-        {/* ... (UI Remains the same, functional logic updated above) ... */}
+    <div className="flex flex-col h-full text-gray-100 relative animate-in fade-in duration-500">
         
-        {/* iOS Style Header with Glass */}
-        <div className="glass-heavy border-b border-white/20 sticky top-0 z-30 rounded-[0_0_2.5rem_2.5rem] mb-6 shadow-lg shrink-0">
-            <div className="px-5 pt-4 pb-2">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-[28px] font-black tracking-tight text-slate-900 dark:text-white">الغياب</h1>
-                    <div className="flex gap-2">
-                         <button onClick={handleExportDailyExcel} disabled={isExportingExcel} className="w-10 h-10 glass-icon rounded-full text-emerald-600 dark:text-emerald-400 active:scale-90 transition-transform shadow-md hover:shadow-emerald-500/20 hover:scale-105 border border-white/20" title="تصدير سجل شهري (Excel)">
-                             {isExportingExcel ? <Loader2 className="w-5 h-5 animate-spin"/> : <Share2 className="w-5 h-5"/>}
-                         </button>
-                    </div>
-                </div>
+        {/* Sticky Header - Adjusted for safe area and removed gap */}
+        <div className="sticky top-0 z-30 pb-2 glass-heavy bg-[#1f2937] border-b border-gray-700 shadow-md -mx-4 px-4 -mt-4">
+            
+            {/* Title & Actions */}
+            <div className="flex justify-between items-center mb-4 pt-safe mt-4">
+                <h1 className="text-2xl font-black tracking-tight text-white">سجل الغياب</h1>
+                <button onClick={handleExportDailyExcel} disabled={isExportingExcel} className="w-10 h-10 glass-icon bg-[#374151] border border-gray-600 rounded-full text-emerald-500 shadow-sm flex items-center justify-center active:scale-95 transition-transform hover:bg-[#4b5563]" title="تصدير سجل شهري">
+                     {isExportingExcel ? <Loader2 className="w-5 h-5 animate-spin"/> : <Share2 className="w-5 h-5"/>}
+                </button>
+            </div>
 
-                {/* Date Scroller */}
-                <div className="flex items-center justify-between glass-card border-white/20 rounded-2xl p-1 mb-3 shadow-inner">
-                    <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toLocaleDateString('en-CA')); }} className="p-3 rounded-xl hover:bg-white/10 active:scale-90 transition-all"><ChevronDown className="w-5 h-5 rotate-90"/></button>
-                    <div className="flex items-center gap-2 font-black text-sm">
-                        <Calendar className="w-4 h-4 text-indigo-500 dark:text-indigo-400"/>
-                        {formatDateDisplay(selectedDate)}
-                    </div>
-                    <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toLocaleDateString('en-CA')); }} className="p-3 rounded-xl hover:bg-white/10 active:scale-90 transition-all"><ChevronDown className="w-5 h-5 -rotate-90"/></button>
+            {/* Date Scroller */}
+            <div className="flex items-center justify-between glass-card bg-[#374151] rounded-2xl p-1 mb-3 shadow-sm border border-gray-600 mx-1">
+                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toLocaleDateString('en-CA')); }} className="p-3 rounded-xl hover:bg-[#4b5563] active:bg-[#1f2937] transition-colors"><ChevronDown className="w-5 h-5 rotate-90 text-gray-400"/></button>
+                <div className="flex items-center gap-2 font-black text-sm text-white">
+                    <Calendar className="w-4 h-4 text-blue-400"/>
+                    {formatDateDisplay(selectedDate)}
                 </div>
+                <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toLocaleDateString('en-CA')); }} className="p-3 rounded-xl hover:bg-[#4b5563] active:bg-[#1f2937] transition-colors"><ChevronDown className="w-5 h-5 -rotate-90 text-gray-400"/></button>
+            </div>
 
-                {/* Filters */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-                    <div className="relative flex-1 min-w-[120px]">
-                        <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400"/>
-                        <input 
-                            type="text" 
-                            placeholder="بحث..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full py-2.5 pr-9 pl-3 text-xs font-bold outline-none glass-input rounded-xl border border-white/10 focus:border-indigo-500/50 shadow-sm" 
-                        />
+            {/* Filters (Grade Level first, then Classes) */}
+            <div className="space-y-2 mb-2 px-1">
+                {availableGrades.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                        <button onClick={() => { setSelectedGrade('all'); setClassFilter('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${selectedGrade === 'all' ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'glass-card bg-[#374151] text-gray-300 border-gray-600'}`}>كل المراحل</button>
+                        {availableGrades.map(g => (
+                            <button key={g} onClick={() => { setSelectedGrade(g); setClassFilter('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${selectedGrade === g ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'glass-card bg-[#374151] text-gray-300 border-gray-600'}`}>صف {g}</button>
+                        ))}
                     </div>
-                    <div className="h-6 w-px bg-white/20 mx-1 shrink-0"></div>
-                    <button onClick={() => setClassFilter('all')} className={`px-4 py-2.5 text-xs font-black whitespace-nowrap rounded-xl transition-all shadow-sm ${classFilter === 'all' ? 'bg-indigo-600 text-white shadow-indigo-500/30' : 'glass-card border-white/10 text-slate-700 dark:text-white'}`}>الكل</button>
-                    {classes.map(c => (
-                        <button key={c} onClick={() => setClassFilter(c)} className={`px-4 py-2.5 text-xs font-black whitespace-nowrap rounded-xl transition-all shadow-sm ${classFilter === c ? 'bg-indigo-600 text-white shadow-indigo-500/30' : 'glass-card border-white/10 text-slate-700 dark:text-white'}`}>{c}</button>
+                )}
+
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {visibleClasses.map(c => (
+                        <button key={c} onClick={() => setClassFilter(c)} className={`px-5 py-2 text-xs font-bold whitespace-nowrap rounded-xl transition-all border ${classFilter === c ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'glass-card bg-[#374151] text-gray-300 border-gray-600 hover:bg-[#4b5563]'}`}>{c}</button>
                     ))}
                 </div>
             </div>
+        </div>
 
-            {/* Live Stats Strip - Improved for small screens */}
-            {/* استخدام min-w-0 لمنع تجاوز النص، وتقليل الحشوات الداخلية */}
-            <div className="grid grid-cols-5 gap-px bg-white/10 dark:bg-white/5 border-t border-white/10">
-                <button onClick={() => handleMarkAll('present')} className="hover:bg-white/10 py-3 flex flex-col items-center justify-center active:bg-white/20 transition-colors min-w-0 px-1">
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-500 dark:text-white/60 mb-0.5 truncate w-full text-center">حضور</span>
-                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 drop-shadow-sm">{stats.present}</span>
-                </button>
-                <button onClick={() => handleMarkAll('absent')} className="hover:bg-white/10 py-3 flex flex-col items-center justify-center active:bg-white/20 transition-colors min-w-0 px-1">
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-500 dark:text-white/60 mb-0.5 truncate w-full text-center">غياب</span>
-                    <span className="text-sm font-black text-rose-600 dark:text-rose-400 drop-shadow-sm">{stats.absent}</span>
-                </button>
-                <button onClick={() => handleMarkAll('late')} className="hover:bg-white/10 py-3 flex flex-col items-center justify-center active:bg-white/20 transition-colors min-w-0 px-1">
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-500 dark:text-white/60 mb-0.5 truncate w-full text-center">تأخر</span>
-                    <span className="text-sm font-black text-amber-600 dark:text-amber-400 drop-shadow-sm">{stats.late}</span>
-                </button>
-                <button onClick={() => handleMarkAll('truant')} className="hover:bg-white/10 py-3 flex flex-col items-center justify-center active:bg-white/20 bg-purple-500/5 transition-colors min-w-0 px-1">
-                    <span className="text-[9px] md:text-[10px] font-bold text-purple-500 dark:text-purple-300 mb-0.5 truncate w-full text-center">تسرب</span>
-                    <span className="text-sm font-black text-purple-600 dark:text-purple-400 drop-shadow-sm">{stats.truant}</span>
-                </button>
-                <button onClick={() => handleMarkAll('reset')} className="hover:bg-white/10 py-3 flex flex-col items-center justify-center active:bg-white/20 transition-colors min-w-0 px-1">
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-500 dark:text-white/60 mb-0.5 truncate w-full text-center">باقي</span>
-                    <span className="text-sm font-black text-slate-400 dark:text-white/40">{stats.total - (stats.present + stats.absent + stats.late + stats.truant)}</span>
-                </button>
-            </div>
+        {/* Live Stats Strip */}
+        <div className="grid grid-cols-5 gap-px bg-gray-700 rounded-2xl overflow-hidden mx-1 mb-4 shadow-sm border border-gray-600 mt-4">
+            <button onClick={() => handleMarkAll('present')} className="bg-[#1f2937] py-3 flex flex-col items-center justify-center active:bg-[#111827] transition-colors hover:bg-[#374151]">
+                <span className="text-[10px] font-bold text-gray-400 mb-1">حضور</span>
+                <span className="text-sm font-black text-emerald-500">{stats.present}</span>
+            </button>
+            <button onClick={() => handleMarkAll('absent')} className="bg-[#1f2937] py-3 flex flex-col items-center justify-center active:bg-[#111827] transition-colors hover:bg-[#374151]">
+                <span className="text-[10px] font-bold text-gray-400 mb-1">غياب</span>
+                <span className="text-sm font-black text-rose-500">{stats.absent}</span>
+            </button>
+            <button onClick={() => handleMarkAll('late')} className="bg-[#1f2937] py-3 flex flex-col items-center justify-center active:bg-[#111827] transition-colors hover:bg-[#374151]">
+                <span className="text-[10px] font-bold text-gray-400 mb-1">تأخر</span>
+                <span className="text-sm font-black text-amber-500">{stats.late}</span>
+            </button>
+            <button onClick={() => handleMarkAll('truant')} className="bg-[#1f2937] py-3 flex flex-col items-center justify-center active:bg-[#111827] transition-colors hover:bg-[#374151]">
+                <span className="text-[10px] font-bold text-gray-400 mb-1">تسرب</span>
+                <span className="text-sm font-black text-purple-500">{stats.truant}</span>
+            </button>
+            <button onClick={() => handleMarkAll('reset')} className="bg-[#1f2937] py-3 flex flex-col items-center justify-center active:bg-[#111827] transition-colors hover:bg-[#374151]">
+                <span className="text-[10px] font-bold text-gray-400 mb-1">باقي</span>
+                <span className="text-sm font-black text-gray-500">{stats.total - (stats.present + stats.absent + stats.late + stats.truant)}</span>
+            </button>
         </div>
 
         {/* Student List */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-24">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-1 pb-24">
             {filteredStudents.length > 0 ? (
-                <div className="flex flex-col gap-3">
-                    {filteredStudents.map((student) => {
+                <div className="space-y-2">
+                    {filteredStudents.map((student, index) => {
                         const status = getStatus(student);
                         return (
-                            <motion.div 
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                            <div 
                                 key={student.id} 
                                 className={`
-                                    p-4 rounded-[1.8rem] flex items-center justify-between glass-card shadow-lg transition-all duration-300 border border-white/20 hover:border-white/40 backdrop-blur-md relative overflow-hidden group
-                                    ${status === 'absent' ? 'border-rose-500/40 bg-rose-500/10 shadow-[0_4px_20px_rgba(244,63,94,0.1)]' : 
-                                      status === 'present' ? 'border-emerald-500/40 bg-emerald-500/10 shadow-[0_4px_20px_rgba(16,185,129,0.1)]' : 
-                                      status === 'late' ? 'border-amber-500/40 bg-amber-500/10 shadow-[0_4px_20px_rgba(245,158,11,0.1)]' : 
-                                      status === 'truant' ? 'border-purple-500/40 bg-purple-500/10 shadow-[0_4px_20px_rgba(168,85,247,0.1)]' : 
-                                      'hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)]'}
+                                    group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden shimmer-hover
+                                    ${status 
+                                        ? 'bg-[#374151] border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
+                                        : 'bg-[#1f2937] border-indigo-500/40 hover:bg-[#374151] hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10'
+                                    }
                                 `}
                             >
-                                {/* Subtle inner glow */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-50"></div>
-
-                                <div className="flex items-center gap-4 min-w-0 flex-1 relative z-10">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black shrink-0 shadow-md glass-icon border border-white/20 group-hover:border-white/40 transition-colors`}>
-                                        {student.avatar ? <img src={student.avatar} className="w-full h-full object-cover rounded-2xl" /> : student.name.charAt(0)}
+                                {/* Left: Info */}
+                                <div className="flex items-center gap-3 min-w-0 flex-1 relative z-10">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-[#374151] text-gray-300 overflow-hidden border border-gray-600 transition-colors group-hover:border-indigo-400`}>
+                                        {student.avatar ? <img src={student.avatar} className="w-full h-full object-cover" /> : student.name.charAt(0)}
                                     </div>
                                     <div className="min-w-0">
-                                        <h3 className={`text-base font-bold truncate mb-1 ${status ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-gray-300'}`}>{student.name}</h3>
-                                        {(status === 'absent' || status === 'late' || status === 'truant') && (
-                                            <button 
-                                                onClick={() => setNotificationTarget({ student, type: status as any })}
-                                                className={`flex items-center gap-1.5 text-[10px] font-black px-3 py-1 rounded-lg w-fit active:scale-95 glass-card border-none shadow-sm ${
-                                                    status === 'absent' 
-                                                    ? 'text-rose-600 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/30' 
-                                                    : status === 'truant'
-                                                    ? 'text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30'
-                                                    : 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30'
-                                                }`}
-                                            >
-                                                <MessageCircle className="w-3.5 h-3.5" /> {status === 'truant' ? 'إشعار تسرب' : (status === 'absent' ? 'إشعار غياب' : 'إشعار تأخير')}
-                                            </button>
+                                        <h3 className={`text-sm font-bold truncate transition-colors ${status ? 'text-white' : 'text-gray-300 group-hover:text-indigo-400'}`}>{student.name}</h3>
+                                        {status && (
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                                                    status === 'present' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/30' :
+                                                    status === 'absent' ? 'bg-rose-900/30 text-rose-400 border border-rose-500/30' :
+                                                    status === 'late' ? 'bg-amber-900/30 text-amber-400 border border-amber-500/30' :
+                                                    'bg-purple-900/30 text-purple-400 border border-purple-500/30'
+                                                }`}>
+                                                    {status === 'present' ? 'حضور' : status === 'absent' ? 'غياب' : status === 'late' ? 'تأخر' : 'تسرب'}
+                                                </span>
+                                                {(status !== 'present') && (
+                                                    <button onClick={() => setNotificationTarget({ student, type: status as any })} className="text-blue-400 bg-blue-900/20 p-1 rounded-full hover:bg-blue-900/40 border border-blue-500/20">
+                                                        <MessageCircle className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 shrink-0 pl-1 relative z-10">
-                                    <button onClick={() => toggleAttendance(student.id, 'present')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${status === 'present' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 scale-105 ring-2 ring-emerald-300/50' : 'glass-icon text-gray-400 hover:text-emerald-500'}`}>
+                                {/* Right: Action Buttons (Compact) */}
+                                <div className="flex items-center gap-1.5 shrink-0 relative z-10">
+                                    <button onClick={() => toggleAttendance(student.id, 'present')} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${status === 'present' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/50' : 'bg-[#374151] text-gray-500 hover:bg-emerald-900/20 hover:text-emerald-400 border border-gray-600'}`}>
                                         <Check className="w-5 h-5" strokeWidth={3} />
                                     </button>
-                                    <button onClick={() => toggleAttendance(student.id, 'absent')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${status === 'absent' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30 scale-105 ring-2 ring-rose-300/50' : 'glass-icon text-gray-400 hover:text-rose-500'}`}>
+                                    <button onClick={() => toggleAttendance(student.id, 'absent')} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${status === 'absent' ? 'bg-rose-600 text-white shadow-md shadow-rose-900/50' : 'bg-[#374151] text-gray-500 hover:bg-rose-900/20 hover:text-rose-400 border border-gray-600'}`}>
                                         <X className="w-5 h-5" strokeWidth={3} />
                                     </button>
-                                    <button onClick={() => toggleAttendance(student.id, 'late')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${status === 'late' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 scale-105 ring-2 ring-amber-300/50' : 'glass-icon text-gray-400 hover:text-amber-500'}`}>
+                                    <button onClick={() => toggleAttendance(student.id, 'late')} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${status === 'late' ? 'bg-amber-600 text-white shadow-md shadow-amber-900/50' : 'bg-[#374151] text-gray-500 hover:bg-amber-900/20 hover:text-amber-400 border border-gray-600'}`}>
                                         <Clock className="w-5 h-5" strokeWidth={3} />
                                     </button>
-                                    <button onClick={() => toggleAttendance(student.id, 'truant')} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90 ${status === 'truant' ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30 scale-105 ring-2 ring-purple-300/50' : 'glass-icon text-gray-400 hover:text-purple-500'}`} title="تسرب">
+                                    <button onClick={() => toggleAttendance(student.id, 'truant')} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${status === 'truant' ? 'bg-purple-600 text-white shadow-md shadow-purple-900/50' : 'bg-[#374151] text-gray-500 hover:bg-purple-900/20 hover:text-purple-400 border border-gray-600'}`}>
                                         <DoorOpen className="w-5 h-5" strokeWidth={3} />
                                     </button>
                                 </div>
-                            </motion.div>
+                            </div>
                         );
                     })}
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                    <UserCircle2 className="w-20 h-20 text-slate-300 dark:text-white mb-4" />
-                    <p className="text-sm font-bold text-slate-400 dark:text-white">لا يوجد طلاب مطابقين</p>
+                    <UserCircle2 className="w-16 h-16 text-gray-500 mb-4" />
+                    <p className="text-xs font-bold text-gray-500">لا يوجد طلاب</p>
                 </div>
             )}
         </div>
 
-        {/* Notification Modal */}
+        {/* Notification Modal (Dark) */}
         <Modal isOpen={!!notificationTarget} onClose={() => setNotificationTarget(null)} className="max-w-xs rounded-[2rem]">
             <div className="text-center">
-                <div className="w-16 h-16 glass-icon rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 dark:text-emerald-400 shadow-lg border border-white/20">
+                <div className="w-16 h-16 bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-400 shadow-sm border border-blue-500/20">
                     <MessageCircle className="w-8 h-8" />
                 </div>
-                <h3 className="font-black text-lg mb-1 dark:text-white">إرسال إشعار</h3>
-                <p className="text-xs text-gray-500 mb-6 font-bold">{notificationTarget?.student.name} - {notificationTarget?.type === 'truant' ? 'تسرب من الحصة' : (notificationTarget?.type === 'absent' ? 'غياب' : 'تأخير')}</p>
+                <h3 className="font-black text-lg mb-1 text-white">إشعار ولي الأمر</h3>
+                <p className="text-xs text-gray-400 mb-6 font-bold">{notificationTarget?.student.name} - {notificationTarget?.type === 'truant' ? 'تسرب من الحصة' : (notificationTarget?.type === 'absent' ? 'غياب' : 'تأخير')}</p>
                 
                 <div className="space-y-3">
-                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all active:scale-95">
+                    <button onClick={() => performNotification('whatsapp')} className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all active:scale-95">
                         <MessageCircle className="w-5 h-5" /> واتساب
                     </button>
-                    <button onClick={() => performNotification('sms')} className="w-full glass-card hover:bg-white/20 text-slate-700 dark:text-white py-3.5 rounded-xl font-black text-sm transition-all active:scale-95">
+                    <button onClick={() => performNotification('sms')} className="w-full bg-[#374151] hover:bg-[#4b5563] text-gray-200 py-3.5 rounded-2xl font-black text-sm transition-all active:scale-95 border border-gray-600">
                         رسالة نصية (SMS)
                     </button>
-                    <button onClick={() => setNotificationTarget(null)} className="text-xs font-bold text-gray-400 mt-2">إلغاء</button>
+                    <button onClick={() => setNotificationTarget(null)} className="text-xs font-bold text-gray-500 mt-2 hover:text-gray-300">إلغاء</button>
                 </div>
             </div>
         </Modal>

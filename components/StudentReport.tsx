@@ -27,21 +27,32 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
   const totalPositivePoints = behaviors.filter(b => b.type === 'positive').reduce((acc, b) => acc + b.points, 0);
   const totalNegativePoints = behaviors.filter(b => b.type === 'negative').reduce((acc, b) => acc + Math.abs(b.points), 0);
 
-  const sem1Grades = allGrades.filter(g => !g.semester || g.semester === '1');
-  const sem2Grades = allGrades.filter(g => g.semester === '2');
+  // Filter grades for current semester
+  const currentSemesterGrades = allGrades.filter(g => !g.semester || g.semester === (currentSemester || '1'));
 
-  const currentSemesterGrades = currentSemester === '2' ? sem2Grades : sem1Grades;
+  // --- Logic for Ordered Grade Rows (Matching GradeBook) ---
+  const finalExamName = "الامتحان النهائي";
+  const continuousTools = assessmentTools.filter(t => t.name.trim() !== finalExamName);
+  const finalTool = assessmentTools.find(t => t.name.trim() === finalExamName);
 
-  const calcStats = (grades: GradeRecord[]) => {
-      let score = 0;
-      grades.forEach(g => {
-          score += Number(g.score) || 0;
-      });
-      return { score };
-  };
+  let continuousSum = 0;
+  
+  // Calculate continuous sum based on tools
+  continuousTools.forEach(tool => {
+      const g = currentSemesterGrades.find(r => r.category.trim() === tool.name.trim());
+      if (g) continuousSum += (Number(g.score) || 0);
+  });
 
-  const sem1Stats = calcStats(sem1Grades);
-  const sem2Stats = calcStats(sem2Grades);
+  // Calculate final score
+  let finalScore = 0;
+  if (finalTool) {
+      const g = currentSemesterGrades.find(r => r.category.trim() === finalTool.name.trim());
+      if (g) finalScore = (Number(g.score) || 0);
+  }
+
+  // Fallback total calculation if no tools defined
+  const fallbackTotal = currentSemesterGrades.reduce((a, b) => a + (Number(b.score) || 0), 0);
+  const totalScore = assessmentTools.length > 0 ? (continuousSum + finalScore) : fallbackTotal;
 
   // Filter Absence and Truant records
   const absenceRecords = (student.attendance || []).filter(a => a.status === 'absent');
@@ -116,7 +127,8 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
 
         {/* Report Preview (Screen) */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
-            <div id="report-content" className="bg-white text-slate-900 p-8 rounded-none md:rounded-[2rem] max-w-4xl mx-auto shadow-xl relative overflow-hidden print-section" dir="rtl">
+            {/* Added 'force-print-style' class to ensure correct colors */}
+            <div id="report-content" className="force-print-style bg-white text-slate-900 p-8 rounded-none md:rounded-[2rem] max-w-4xl mx-auto shadow-xl relative overflow-hidden border-[3px] border-black box-border" dir="rtl">
                 
                 {/* Formal Header */}
                 <div className="flex justify-between items-start mb-8 border-b-2 border-slate-900/10 pb-6">
@@ -174,7 +186,7 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                     </div>
                 </div>
 
-                {/* Grades Section */}
+                {/* Grades Section - Ordered to Match GradeBook */}
                 <div className="mb-8">
                     <h3 className="font-black text-lg mb-4 flex items-center gap-2">
                         <FileText className="w-5 h-5 text-indigo-600" />
@@ -189,23 +201,58 @@ const StudentReport: React.FC<StudentReportProps> = ({ student, onUpdateStudent,
                             </tr>
                         </thead>
                         <tbody>
-                            {currentSemesterGrades.length > 0 ? currentSemesterGrades.map((g, idx) => (
-                                <tr key={idx}>
-                                    <td className="border border-slate-300 p-3 text-sm font-bold">{g.subject}</td>
-                                    <td className="border border-slate-300 p-3 text-sm text-center">{g.category}</td>
-                                    <td className="border border-slate-300 p-3 text-sm text-center font-bold font-mono">{g.score}</td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan={3} className="border border-slate-300 p-4 text-center text-sm text-slate-500">لا توجد درجات مرصودة لهذا الفصل</td>
-                                </tr>
+                            {assessmentTools.length > 0 ? (
+                                <>
+                                    {/* 1. Continuous Tools Rows */}
+                                    {continuousTools.map((tool) => {
+                                        const grade = currentSemesterGrades.find(g => g.category.trim() === tool.name.trim());
+                                        return (
+                                            <tr key={tool.id}>
+                                                <td className="border border-slate-300 p-3 text-sm font-bold text-right">{teacherInfo?.subject || 'المادة'}</td>
+                                                <td className="border border-slate-300 p-3 text-sm text-center bg-[#ffedd5]">{tool.name}</td>
+                                                <td className="border border-slate-300 p-3 text-sm text-center font-bold font-mono">{grade ? grade.score : '-'}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    
+                                    {/* 2. Sum 60 Row */}
+                                    <tr className="bg-blue-50 font-bold">
+                                        <td colSpan={2} className="border border-slate-300 p-3 text-sm text-center text-blue-900 border-t-2 border-slate-400">المجموع (60)</td>
+                                        <td className="border border-slate-300 p-3 text-sm text-center font-mono text-blue-900 border-t-2 border-slate-400">{continuousSum}</td>
+                                    </tr>
+
+                                    {/* 3. Final Exam Row (Only if tool exists) */}
+                                    {finalTool && (() => {
+                                        const grade = currentSemesterGrades.find(g => g.category.trim() === finalTool.name.trim());
+                                        return (
+                                            <tr key={finalTool.id}>
+                                                <td className="border border-slate-300 p-3 text-sm font-bold text-right">{teacherInfo?.subject || 'المادة'}</td>
+                                                <td className="border border-slate-300 p-3 text-sm text-center bg-[#fce7f3]">{finalTool.name} (40)</td>
+                                                <td className="border border-slate-300 p-3 text-sm text-center font-bold font-mono">{grade ? grade.score : '-'}</td>
+                                            </tr>
+                                        );
+                                    })()}
+                                </>
+                            ) : (
+                                /* Fallback if no tools defined (Raw List) */
+                                currentSemesterGrades.length > 0 ? currentSemesterGrades.map((g, idx) => (
+                                    <tr key={idx}>
+                                        <td className="border border-slate-300 p-3 text-sm font-bold">{g.subject}</td>
+                                        <td className="border border-slate-300 p-3 text-sm text-center">{g.category}</td>
+                                        <td className="border border-slate-300 p-3 text-sm text-center font-bold font-mono">{g.score}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan={3} className="border border-slate-300 p-4 text-center text-sm text-slate-500">لا توجد درجات مرصودة لهذا الفصل</td>
+                                    </tr>
+                                )
                             )}
                         </tbody>
                         <tfoot>
-                            <tr className="bg-slate-50">
-                                <td colSpan={2} className="border border-slate-300 p-3 text-sm font-black text-right">المجموع الكلي</td>
-                                <td className="border border-slate-300 p-3 text-sm font-black text-center font-mono">
-                                    {(currentSemester === '1' ? sem1Stats.score : sem2Stats.score)}
+                            <tr className="bg-slate-100">
+                                <td colSpan={2} className="border border-slate-300 p-3 text-sm font-black text-right border-t-2 border-black">المجموع الكلي</td>
+                                <td className="border border-slate-300 p-3 text-sm font-black text-center font-mono text-lg border-t-2 border-black">
+                                    {totalScore}
                                 </td>
                             </tr>
                         </tfoot>

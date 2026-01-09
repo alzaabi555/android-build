@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Printer, FileSpreadsheet, User, Users, CalendarRange, Calendar, FileText, Award, BarChart3, Check, Settings, Trash2, Image as ImageIcon, FileWarning, Share2, Upload, ChevronDown, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Printer, FileSpreadsheet, User, Users, Award, BarChart3, Check, Settings, Image as ImageIcon, FileWarning, Share2, Upload, ChevronDown, X, FileText, Loader2, ListChecks, Eye, Layers } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import StudentReport from './StudentReport';
@@ -9,32 +9,52 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-
-declare var html2pdf: any;
+import html2pdf from 'html2pdf.js';
 
 const Reports: React.FC = () => {
   const { students, setStudents, classes, teacherInfo, setTeacherInfo, currentSemester, assessmentTools, certificateSettings, setCertificateSettings } = useApp();
   const [activeTab, setActiveTab] = useState<'student_report' | 'grades_record' | 'certificates' | 'summon'>('student_report');
 
-  // --- Student Report State ---
-  const [stClass, setStClass] = useState<string>(classes[0] || '');
+  // --- Hierarchy Helpers ---
+  const availableGrades = useMemo(() => {
+      const grades = new Set<string>();
+      students.forEach(s => {
+          if (s.grade) grades.add(s.grade);
+          else if (s.classes[0]) {
+              const match = s.classes[0].match(/^(\d+)/);
+              if (match) grades.add(match[1]);
+          }
+      });
+      if (grades.size === 0 && classes.length > 0) return ['عام']; 
+      return Array.from(grades).sort();
+  }, [students, classes]);
+
+  const getClassesForGrade = (grade: string) => {
+      if (grade === 'all') return classes;
+      return classes.filter(c => c.startsWith(grade));
+  };
+
+  // --- States ---
+  // Student Report Tab
+  const [stGrade, setStGrade] = useState<string>('all');
+  const [stClass, setStClass] = useState<string>('');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
 
-  // --- Grades Record State ---
+  // Grades Record Tab
+  const [gradesGrade, setGradesGrade] = useState<string>('all');
   const [gradesClass, setGradesClass] = useState<string>('all');
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-  // --- Certificates State ---
-  const [certClass, setCertClass] = useState<string>(classes[0] || '');
+  
+  // Certificates Tab
+  const [certGrade, setCertGrade] = useState<string>('all');
+  const [certClass, setCertClass] = useState<string>('');
   const [selectedCertStudents, setSelectedCertStudents] = useState<string[]>([]);
   const [showCertSettingsModal, setShowCertSettingsModal] = useState(false);
   const [tempCertSettings, setTempCertSettings] = useState(certificateSettings);
-
-  // --- Summon State ---
-  const [summonClass, setSummonClass] = useState<string>(classes[0] || '');
+  
+  // Summon Tab
+  const [summonGrade, setSummonGrade] = useState<string>('all');
+  const [summonClass, setSummonClass] = useState<string>('');
   const [summonStudentId, setSummonStudentId] = useState<string>('');
   const [summonDate, setSummonDate] = useState(new Date().toISOString().split('T')[0]);
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -42,14 +62,31 @@ const Reports: React.FC = () => {
   const [reasonType, setReasonType] = useState('absence');
   const [customReason, setCustomReason] = useState('');
   const [showSummonPreview, setShowSummonPreview] = useState(false);
-  const [showAssetsSettings, setShowAssetsSettings] = useState(false);
-  const letterRef = useRef<HTMLDivElement>(null);
+  
+  // General
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Helpers
+  // Procedures Checkboxes
+  const [takenProcedures, setTakenProcedures] = useState<string[]>([]);
+  const availableProcedures = [
+      'تنبيه شفوي للطالب',
+      'تعهد خطي على الطالب',
+      'إشعار ولي الأمر هاتفياً',
+      'إرسال إشعار عبر الواتساب',
+      'مناقشة الطالب في المستوى',
+      'تحويل للأخصائي الاجتماعي'
+  ];
+
+  // --- Filtered Data ---
   const filteredStudentsForStudentTab = useMemo(() => students.filter(s => s.classes.includes(stClass)), [students, stClass]);
   const filteredStudentsForGrades = useMemo(() => students.filter(s => gradesClass === 'all' || s.classes.includes(gradesClass)), [students, gradesClass]);
   const filteredStudentsForCert = useMemo(() => students.filter(s => s.classes.includes(certClass)), [students, certClass]);
   const availableStudentsForSummon = useMemo(() => students.filter(s => s.classes.includes(summonClass)), [summonClass, students]);
+
+  // Reset logic when hierarchy changes
+  useEffect(() => { if(getClassesForGrade(stGrade).length > 0) setStClass(getClassesForGrade(stGrade)[0]); }, [stGrade]);
+  useEffect(() => { if(getClassesForGrade(certGrade).length > 0) setCertClass(getClassesForGrade(certGrade)[0]); }, [certGrade]);
+  useEffect(() => { if(getClassesForGrade(summonGrade).length > 0) setSummonClass(getClassesForGrade(summonGrade)[0]); }, [summonGrade]);
 
   useEffect(() => {
       if(showCertSettingsModal) setTempCertSettings(certificateSettings);
@@ -63,17 +100,6 @@ const Reports: React.FC = () => {
   const handleViewStudentReport = () => {
       const student = students.find(s => s.id === selectedStudentId);
       if (student) setViewingStudent(student);
-  };
-
-  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              setTempCertSettings(prev => ({ ...prev, backgroundImage: reader.result as string, showDefaultDesign: false }));
-          };
-          reader.readAsDataURL(file);
-      }
   };
 
   const handleSaveCertSettings = () => {
@@ -95,7 +121,12 @@ const Reports: React.FC = () => {
       );
   };
 
-  // --- Grade Book Logic ---
+  const toggleProcedure = (proc: string) => {
+      setTakenProcedures(prev => 
+          prev.includes(proc) ? prev.filter(p => p !== proc) : [...prev, proc]
+      );
+  };
+
   const getGradeSymbol = (score: number) => {
       if (score >= 90) return 'أ';
       if (score >= 80) return 'ب';
@@ -104,335 +135,383 @@ const Reports: React.FC = () => {
       return 'هـ';
   };
 
-  const getActiveColumns = () => {
-    const columns = new Set<string>();
-    assessmentTools.forEach(t => columns.add(t.name.trim()));
-    filteredStudentsForGrades.forEach(s => {
-        (s.grades || []).filter(g => (g.semester || '1') === currentSemester).forEach(g => {
-            if (g.category) columns.add(g.category.trim());
-        });
-    });
-    return Array.from(columns).sort();
-  };
-
-  const getBase64Image = async (url: string): Promise<string> => {
-      try {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          return new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-          });
-      } catch (e) { return ''; }
-  };
-
-  // Helper function for reliable PDF generation across all platforms
-  const generateAndSharePDF = async (element: HTMLElement, filename: string, landscape = false) => {
+  // --- PDF GENERATOR ---
+  const generateAndSharePDF = async (htmlContent: string, filename: string, landscape = false) => {
       setIsGeneratingPdf(true);
       
-      if (typeof html2pdf !== 'undefined') {
-          const opt = { 
-              margin: 0, 
-              filename: filename, 
-              image: { type: 'jpeg', quality: 0.98 }, 
-              html2canvas: { scale: 2, useCORS: true }, 
-              jsPDF: { unit: 'mm', format: 'a4', orientation: landscape ? 'landscape' : 'portrait' } 
-          };
-          try {
-              const worker = html2pdf().set(opt).from(element).toPdf();
-              if (Capacitor.isNativePlatform()) {
-                  // For Mobile (iOS/Android): Save to Filesystem then Share
-                  const pdfBase64 = await worker.output('datauristring');
-                  const base64Data = pdfBase64.split(',')[1];
-                  const result = await Filesystem.writeFile({ path: filename, data: base64Data, directory: Directory.Cache });
-                  await Share.share({ title: filename, url: result.uri });
-              } else { 
-                  // For Web/Electron: Download directly
-                  worker.save(); 
-              }
-          } catch (e) { 
-              console.error(e);
-              alert('خطأ في إنشاء ملف PDF'); 
-          } finally { 
-              setIsGeneratingPdf(false); 
+      const container = document.createElement('div');
+      container.className = 'force-print-style';
+      container.innerHTML = htmlContent;
+      document.body.appendChild(container);
+
+      const opt = {
+          margin: [5, 5, 5, 5],
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+              scale: 2, 
+              useCORS: true, 
+              logging: false,
+              letterRendering: true,
+              backgroundColor: '#ffffff'
+          },
+          jsPDF: { 
+              unit: 'mm', 
+              format: 'a4', 
+              orientation: landscape ? 'landscape' : 'portrait' 
+          },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } 
+      };
+
+      try {
+          const worker = html2pdf().set(opt).from(container).toPdf();
+          
+          if (Capacitor.isNativePlatform()) {
+              const pdfBase64 = await worker.output('datauristring');
+              const base64Data = pdfBase64.split(',')[1];
+              const result = await Filesystem.writeFile({ path: filename, data: base64Data, directory: Directory.Cache });
+              await Share.share({ title: filename, url: result.uri });
+          } else { 
+              worker.save(); 
           }
-      } else { 
-          alert('مكتبة PDF غير متوفرة'); 
+      } catch (e) { 
+          console.error('PDF Error:', e);
+          alert('خطأ في إنشاء PDF'); 
+      } finally { 
+          if (document.body.contains(container)) document.body.removeChild(container);
           setIsGeneratingPdf(false); 
       }
   };
 
-  const handlePrintGradeReport = async () => {
-      if (filteredStudentsForGrades.length === 0) return alert('لا يوجد طلاب');
-      const logoBase64 = await getBase64Image('icon.png'); 
-      const activeColumns = getActiveColumns();
-
-      const element = document.createElement('div');
-      element.setAttribute('dir', 'rtl');
-      element.style.fontFamily = 'Tajawal, sans-serif';
-      element.style.padding = '20px';
-      element.style.backgroundColor = '#fff';
-      element.style.color = '#000';
-
-      const toolHeaders = activeColumns.map(name => `<th style="border:1px solid #000; padding:5px; font-size:10px;">${name}</th>`).join('');
-      
-      const rows = filteredStudentsForGrades.map((s, i) => {
-          const semGrades = (s.grades || []).filter(g => (g.semester || '1') === currentSemester);
-          const toolCells = activeColumns.map(name => {
-              const g = semGrades.find(grade => grade.category.trim() === name);
-              return `<td style="border:1px solid #000; padding:5px; text-align:center;">${g ? g.score : '-'}</td>`;
-          }).join('');
-          
-          const total = semGrades.reduce((acc, g) => acc + (Number(g.score) || 0), 0);
-          const symbol = getGradeSymbol(total);
-
-          return `
-            <tr>
-                <td style="border:1px solid #000; padding:5px; text-align:center;">${i + 1}</td>
-                <td style="border:1px solid #000; padding:5px; font-weight:bold;">${s.name}</td>
-                ${toolCells}
-                <td style="border:1px solid #000; padding:5px; text-align:center; font-weight:bold; background:#f0f0f0;">${total}</td>
-                <td style="border:1px solid #000; padding:5px; text-align:center;">${symbol}</td>
-            </tr>
-          `;
-      }).join('');
-
-      element.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <img src="${logoBase64}" style="width: 80px; height: auto; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;" />
-            <h3 style="margin: 5px 0; font-size: 16px; font-weight: bold;">سلطنة عمان</h3>
-            <h3 style="margin: 2px 0; font-size: 16px; font-weight: bold;">وزارة التربية والتعليم</h3>
-            <h3 style="margin: 2px 0; font-size: 16px; font-weight: bold;">المديرية العامة للتربية والتعليم لمحافظة ${teacherInfo?.governorate || '.........'}</h3>
-            <h3 style="margin: 2px 0; font-size: 16px; font-weight: bold;">مدرسة ${teacherInfo?.school || '..................'}</h3>
-            <div style="margin-top: 15px; border-top: 1px solid #000; width: 100%;"></div>
-            <h2 style="margin: 15px 0 5px 0; font-size: 20px; font-weight: bold;">سجل الدرجات - الفصل الدراسي ${currentSemester}</h2>
-            <p style="margin: 0; font-size: 14px;">المادة: ${teacherInfo?.subject || '.....'} | الصف: ${gradesClass === 'all' ? 'جميع الفصول' : gradesClass}</p>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
-            <thead>
-                <tr style="background-color: #eee;">
-                    <th style="border:1px solid #000; padding:5px; width:40px;">#</th>
-                    <th style="border:1px solid #000; padding:5px;">اسم الطالب</th>
-                    ${toolHeaders}
-                    <th style="border:1px solid #000; padding:5px; width:60px;">المجموع</th>
-                    <th style="border:1px solid #000; padding:5px; width:50px;">التقدير</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${rows}
-            </tbody>
-        </table>
-        <div style="margin-top: 40px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; padding: 0 50px;">
-            <div style="text-align: center;">معلم المادة<br/>${teacherInfo?.name || ''}</div>
-            <div style="text-align: center;">يعتمد،، مدير المدرسة<br/>....................</div>
-        </div>
-      `;
-
-      await generateAndSharePDF(element, `GradeReport_Sem${currentSemester}.pdf`, true);
-  };
-
+  // --- 1. PRINT ALL STUDENTS REPORTS (BULK) ---
   const handlePrintClassReports = async () => {
-      const studentsToPrint = filteredStudentsForStudentTab;
-      if (studentsToPrint.length === 0) return alert('لا يوجد طلاب في الفصل المحدد');
+      if (filteredStudentsForStudentTab.length === 0) return alert('لا يوجد طلاب في هذا الفصل');
       
-      const ministryLogo = teacherInfo.ministryLogo || await getBase64Image('oman_logo.png') || await getBase64Image('icon.png');
-      const stamp = teacherInfo.stamp || '';
+      const finalExamName = "الامتحان النهائي";
+      const continuousTools = assessmentTools.filter(t => t.name.trim() !== finalExamName);
+      const finalTool = assessmentTools.find(t => t.name.trim() === finalExamName);
 
-      const element = document.createElement('div');
-      element.innerHTML = studentsToPrint.map(student => {
-          const behaviors = (student.behaviors || []).filter(b => !b.semester || b.semester === currentSemester);
-          const totalPos = behaviors.filter(b => b.type === 'positive').reduce((acc, b) => acc + b.points, 0);
-          const totalNeg = behaviors.filter(b => b.type === 'negative').reduce((acc, b) => acc + Math.abs(b.points), 0);
+      let allPagesHtml = '';
+
+      filteredStudentsForStudentTab.forEach((student) => {
+          // Logic from StudentReport.tsx
+          const behaviors = (student.behaviors || []).filter(b => !b.semester || b.semester === (currentSemester || '1'));
+          const currentSemesterGrades = (student.grades || []).filter(g => !g.semester || g.semester === (currentSemester || '1'));
           
-          const grades = (student.grades || []).filter(g => (g.semester || '1') === currentSemester);
-          const totalScore = grades.reduce((acc, g) => acc + (Number(g.score) || 0), 0);
+          const totalPositive = behaviors.filter(b => b.type === 'positive').reduce((acc, b) => acc + b.points, 0);
+          const totalNegative = behaviors.filter(b => b.type === 'negative').reduce((acc, b) => acc + Math.abs(b.points), 0);
           
-          const absRecs = (student.attendance || []).filter(a => a.status === 'absent');
-          const truantRecs = (student.attendance || []).filter(a => a.status === 'truant');
+          let continuousSum = 0;
+          let continuousRows = '';
+          
+          if (assessmentTools.length > 0) {
+              continuousTools.forEach(tool => {
+                  const g = currentSemesterGrades.find(r => r.category.trim() === tool.name.trim());
+                  const score = g ? Number(g.score) : 0;
+                  continuousSum += score;
+                  continuousRows += `
+                    <tr>
+                        <td style="border:1px solid #000; padding:8px; text-align:right;">${teacherInfo.subject || 'المادة'}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center; background-color:#ffedd5;">${tool.name}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center; font-weight:bold;">${g ? g.score : '-'}</td>
+                    </tr>
+                  `;
+              });
+          } else {
+              currentSemesterGrades.forEach(g => {
+                  continuousSum += (Number(g.score) || 0);
+                  continuousRows += `
+                    <tr>
+                        <td style="border:1px solid #000; padding:8px; text-align:right;">${g.subject}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center;">${g.category}</td>
+                        <td style="border:1px solid #000; padding:8px; text-align:center; font-weight:bold;">${g.score}</td>
+                    </tr>
+                  `;
+              });
+          }
 
-          const gradesRows = grades.length > 0 ? grades.map(g => `
-            <tr>
-                <td style="border:1px solid #ccc; padding:8px;">${g.subject}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:center;">${g.category}</td>
-                <td style="border:1px solid #ccc; padding:8px; text-align:center;"><b>${g.score}</b></td>
-            </tr>
-          `).join('') : `<tr><td colspan="3" style="border:1px solid #ccc; padding:10px; text-align:center;">لا توجد درجات</td></tr>`;
+          let finalScore = 0;
+          let finalRow = '';
+          if (finalTool) {
+              const g = currentSemesterGrades.find(r => r.category.trim() === finalTool.name.trim());
+              finalScore = g ? Number(g.score) : 0;
+              finalRow = `
+                <tr>
+                    <td style="border:1px solid #000; padding:8px; text-align:right;">${teacherInfo.subject || 'المادة'}</td>
+                    <td style="border:1px solid #000; padding:8px; text-align:center; background-color:#fce7f3;">${finalTool.name} (40)</td>
+                    <td style="border:1px solid #000; padding:8px; text-align:center; font-weight:bold;">${g ? g.score : '-'}</td>
+                </tr>
+              `;
+          }
 
-          const behaviorRows = behaviors.length > 0 ? behaviors.map(b => `
-            <div style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #eee;">
-                <span>${b.description} (${new Date(b.date).toLocaleDateString('en-GB')})</span>
-                <span style="font-weight:bold; color:${b.type === 'positive' ? 'green' : 'red'};">${b.type === 'positive' ? '+' : '-'}${Math.abs(b.points)}</span>
-            </div>
-          `).join('') : '<div style="padding:10px; text-align:center; color:#777;">لا توجد ملاحظات</div>';
+          const totalScore = assessmentTools.length > 0 ? (continuousSum + finalScore) : continuousSum;
+          const absenceCount = (student.attendance || []).filter(a => a.status === 'absent').length;
+          const truantCount = (student.attendance || []).filter(a => a.status === 'truant').length;
 
-          return `
-            <div class="report-page" style="page-break-after: always; padding: 40px; font-family: 'Tajawal', sans-serif; direction: rtl; position: relative;">
-                <div style="display:flex; justify-content:space-between; border-bottom:2px solid #eee; padding-bottom:20px; margin-bottom:30px;">
+          allPagesHtml += `
+            <div style="page-break-after: always; padding: 40px; font-family: 'Tajawal', sans-serif; direction: rtl; background: white; color: black; box-sizing: border-box; height: 100vh; position: relative;">
+                
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; border-bottom:2px solid #eee; padding-bottom:20px;">
                     <div style="text-align:center; width:33%;">
-                        <p style="margin:2px; font-weight:bold;">سلطنة عمان</p>
-                        <p style="margin:2px; font-weight:bold;">وزارة التربية والتعليم</p>
-                        <p style="margin:2px; font-weight:bold;">مدرسة ${teacherInfo.school || '......'}</p>
+                        <p style="margin:0; font-weight:bold;">سلطنة عمان</p>
+                        <p style="margin:0; font-weight:bold;">وزارة التربية والتعليم</p>
+                        <p style="margin:0; font-weight:bold; font-size:10px;">محافظة ${teacherInfo.governorate}</p>
+                        <p style="margin:0; font-weight:bold; font-size:10px;">مدرسة ${teacherInfo.school}</p>
                     </div>
                     <div style="text-align:center; width:33%;">
-                        <img src="${ministryLogo}" style="height:80px; object-fit:contain;" />
-                        <h2 style="margin-top:10px; text-decoration:underline;">تقرير مستوى طالب</h2>
+                        ${teacherInfo.ministryLogo ? `<img src="${teacherInfo.ministryLogo}" style="height:60px; object-fit:contain;" />` : ''}
+                        <h2 style="font-weight:900; text-decoration:underline; margin-top:10px;">تقرير مستوى طالب</h2>
                     </div>
-                    <div style="text-align:right; width:33%;">
-                        <p style="margin:2px;">العام الدراسي: ${teacherInfo.academicYear}</p>
-                        <p style="margin:2px;">الفصل الدراسي: ${currentSemester === '1' ? 'الأول' : 'الثاني'}</p>
+                    <div style="text-align:left; width:33%; font-size:12px; font-weight:bold;">
+                        <p>العام الدراسي: ${teacherInfo.academicYear}</p>
+                        <p>الفصل: ${currentSemester === '1' ? 'الأول' : 'الثاني'}</p>
+                        <p>التاريخ: ${new Date().toLocaleDateString('en-GB')}</p>
                     </div>
                 </div>
 
-                <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:20px; border-radius:15px; margin-bottom:30px; display:flex; justify-content:space-between;">
-                    <div>
-                        <h3 style="margin:0 0 10px 0;">الطالب: ${student.name}</h3>
-                        <p style="margin:0;">الصف: ${student.classes[0]} | ولي الأمر: ${student.parentPhone || '-'}</p>
-                    </div>
-                    <div style="text-align:left;">
-                        <span style="background:#dcfce7; color:#15803d; padding:5px 10px; border-radius:5px; font-weight:bold;">إيجابي: ${totalPos}</span>
-                        <span style="background:#ffe4e6; color:#be123c; padding:5px 10px; border-radius:5px; font-weight:bold; margin-right:5px;">سلبي: ${totalNeg}</span>
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; padding:15px; border-radius:10px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1;">
+                        <div style="display:flex; gap:20px; margin-bottom:10px;">
+                            <div><span style="color:#64748b; font-size:10px;">الاسم:</span> <strong style="font-size:16px;">${student.name}</strong></div>
+                            <div style="width:1px; background:#cbd5e1;"></div>
+                            <div><span style="color:#64748b; font-size:10px;">الصف:</span> <strong style="font-size:16px;">${student.classes[0]}</strong></div>
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">إيجابي: ${totalPositive}</span>
+                            <span style="background:#ffe4e6; color:#be123c; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">سلبي: ${totalNegative}</span>
+                        </div>
                     </div>
                 </div>
 
-                <h3 style="border-bottom:1px solid #ccc; padding-bottom:5px;">التحصيل الدراسي (المجموع: ${totalScore})</h3>
-                <table style="width:100%; border-collapse:collapse; margin-bottom:30px;">
+                <h3 style="font-weight:bold; font-size:16px; margin-bottom:10px; border-bottom:1px solid #000; padding-bottom:5px;">التحصيل الدراسي</h3>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:12px;">
                     <thead>
-                        <tr style="background:#f3f4f6;">
-                            <th style="border:1px solid #ccc; padding:8px;">المادة</th>
-                            <th style="border:1px solid #ccc; padding:8px;">الأداة</th>
-                            <th style="border:1px solid #ccc; padding:8px;">الدرجة</th>
+                        <tr style="background:#f1f5f9;">
+                            <th style="border:1px solid #000; padding:8px;">المادة</th>
+                            <th style="border:1px solid #000; padding:8px;">أداة التقويم</th>
+                            <th style="border:1px solid #000; padding:8px;">الدرجة</th>
                         </tr>
                     </thead>
-                    <tbody>${gradesRows}</tbody>
+                    <tbody>
+                        ${continuousRows}
+                        <tr style="background:#eff6ff; font-weight:bold;">
+                            <td colspan="2" style="border:1px solid #000; padding:8px; text-align:center;">المجموع (60)</td>
+                            <td style="border:1px solid #000; padding:8px; text-align:center;">${continuousSum}</td>
+                        </tr>
+                        ${finalRow}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background:#f1f5f9;">
+                            <td colspan="2" style="border:1px solid #000; padding:8px; font-weight:900; text-align:right;">المجموع الكلي</td>
+                            <td style="border:1px solid #000; padding:8px; font-weight:900; text-align:center; font-size:14px;">${totalScore}</td>
+                        </tr>
+                    </tfoot>
                 </table>
 
-                <h3 style="border-bottom:1px solid #ccc; padding-bottom:5px;">الحضور والغياب</h3>
-                <div style="display:flex; gap:20px; margin-bottom:20px;">
-                    <div style="flex:1; border:1px solid #ccc; padding:10px; text-align:center; border-radius:10px;">غياب: <b style="color:red;">${absRecs.length}</b></div>
-                    <div style="flex:1; border:1px solid #ccc; padding:10px; text-align:center; border-radius:10px;">تسرب: <b style="color:purple;">${truantRecs.length}</b></div>
+                <div style="display:flex; gap:15px; margin-bottom:20px;">
+                    <div style="flex:1; border:1px solid #cbd5e1; padding:10px; border-radius:8px; text-align:center;">
+                        <span style="display:block; font-size:10px; color:#64748b;">أيام الغياب</span>
+                        <span style="font-weight:900; color:#e11d48; font-size:18px;">${absenceCount}</span>
+                    </div>
+                    <div style="flex:1; border:1px solid #cbd5e1; padding:10px; border-radius:8px; text-align:center;">
+                        <span style="display:block; font-size:10px; color:#64748b;">الهروب (التسرب)</span>
+                        <span style="font-weight:900; color:#9333ea; font-size:18px;">${truantCount}</span>
+                    </div>
                 </div>
 
-                <h3 style="border-bottom:1px solid #ccc; padding-bottom:5px;">السلوك والملاحظات</h3>
-                <div style="border:1px solid #eee; padding:10px; border-radius:10px; margin-bottom:40px;">
-                    ${behaviorRows}
-                </div>
-
-                <div style="display:flex; justify-content:space-between; margin-top:50px;">
+                <div style="position:absolute; bottom:40px; left:40px; right:40px; display:flex; justify-content:space-between; align-items:flex-end;">
                     <div style="text-align:center;">
-                        <p style="font-weight:bold;">معلم المادة</p>
+                        <p style="font-weight:bold; margin-bottom:30px;">معلم المادة</p>
                         <p>${teacherInfo.name}</p>
                     </div>
-                    ${stamp ? `<img src="${stamp}" style="width:120px; opacity:0.7; mix-blend-mode:multiply;" />` : ''}
                     <div style="text-align:center;">
-                        <p style="font-weight:bold;">مدير المدرسة</p>
+                        ${teacherInfo.stamp ? `<img src="${teacherInfo.stamp}" style="width:100px; opacity:0.7; mix-blend-mode:multiply; transform:rotate(-5deg);" />` : ''}
+                    </div>
+                    <div style="text-align:center;">
+                        <p style="font-weight:bold; margin-bottom:30px;">مدير المدرسة</p>
                         <p>....................</p>
                     </div>
                 </div>
             </div>
           `;
-      }).join('');
+      });
 
-      await generateAndSharePDF(element, `ClassReports_${stClass}.pdf`);
+      await generateAndSharePDF(allPagesHtml, `Class_Report_${stClass}.pdf`, false);
   };
 
-  // --- Certificate Logic ---
+  // --- 2. GRADES RECORD PRINT ---
+  const handlePrintGradeReport = async () => {
+      if (filteredStudentsForGrades.length === 0) return alert('لا يوجد طلاب في هذا الفصل');
+      
+      const finalExamName = "الامتحان النهائي";
+      const continuousTools = assessmentTools.filter(t => t.name.trim() !== finalExamName);
+      const finalTool = assessmentTools.find(t => t.name.trim() === finalExamName);
+
+      let headerHtml = `
+        <th style="width:30px;">م</th>
+        <th>اسم الطالب</th>
+      `;
+      
+      continuousTools.forEach(t => {
+          headerHtml += `<th style="background-color:#ffedd5 !important; color:#000 !important;">${t.name}</th>`;
+      });
+
+      headerHtml += `
+        <th style="width:60px; background-color:#dbeafe !important; color:#000 !important; border-right: 2px solid #000 !important;">المجموع (60)</th>
+      `;
+
+      if (finalTool) {
+          headerHtml += `<th style="width:70px; background-color:#fce7f3 !important; color:#000 !important;">${finalTool.name} (40)</th>`;
+      }
+
+      headerHtml += `
+        <th style="width:60px; background-color:#e5e7eb !important; color:#000 !important;">المجموع الكلي</th>
+        <th style="width:40px;">التقدير</th>
+      `;
+
+      let rowsHtml = '';
+      
+      filteredStudentsForGrades.forEach((s, i) => {
+          const semGrades = (s.grades || []).filter(g => (g.semester || '1') === currentSemester);
+          let continuousSum = 0;
+          let continuousCells = '';
+
+          continuousTools.forEach(tool => {
+              const g = semGrades.find(gr => gr.category.trim() === tool.name.trim());
+              const val = g ? Number(g.score) : 0;
+              continuousSum += val;
+              continuousCells += `<td>${g ? g.score : '-'}</td>`;
+          });
+
+          const finalExamGrade = finalTool ? semGrades.find(gr => gr.category.trim() === finalTool.name.trim()) : null;
+          const finalExamScore = finalExamGrade ? Number(finalExamGrade.score) : 0;
+          const totalScore = continuousSum + finalExamScore;
+
+          rowsHtml += `
+            <tr style="page-break-inside: avoid; break-inside: avoid;">
+                <td>${i + 1}</td>
+                <td style="text-align: right; padding-right: 8px; font-weight:bold;">${s.name}</td>
+                ${continuousCells}
+                <td style="font-weight:900; background-color:#eff6ff !important; border-right: 2px solid #000 !important;">${continuousSum}</td>
+                ${finalTool ? `<td style="font-weight:900; background-color:#fdf2f8 !important;">${finalExamGrade ? finalExamGrade.score : '-'}</td>` : ''}
+                <td style="font-weight:900; background-color:#f3f4f6 !important;">${totalScore}</td>
+                <td>${getGradeSymbol(totalScore)}</td>
+            </tr>
+          `;
+      });
+
+      const html = `
+        <div id="report-content-print" class="force-print-style" style="padding:20px; font-family:'Tajawal', sans-serif; width:100%; color:black !important; background:white !important; direction:rtl;">
+            <style>
+              .force-print-style table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 2px solid #000; color: #000 !important; font-size: 10px; }
+              .force-print-style th { background-color: #e5e7eb; color: #000 !important; font-weight: bold; padding: 6px; border: 1px solid #000; }
+              .force-print-style td { padding: 4px; border: 1px solid #000; text-align: center; color: #000 !important; }
+              tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+              td, th { page-break-inside: avoid !important; break-inside: avoid !important; }
+            </style>
+
+            <div style="text-align:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div style="text-align:right;">
+                        <p style="margin:0; font-weight:bold;">سلطنة عمان</p>
+                        <p style="margin:0; font-weight:bold;">وزارة التربية والتعليم</p>
+                    </div>
+                    <div>
+                        <h1 style="font-size:18px; font-weight:900; margin:0; text-decoration:underline;">سجل درجات الطلاب</h1>
+                    </div>
+                    <div style="text-align:left;">
+                        <p style="margin:0; font-weight:bold;">المادة: ${teacherInfo.subject}</p>
+                        <p style="margin:0; font-weight:bold;">الصف: ${gradesClass === 'all' ? 'الكل' : gradesClass}</p>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:center; gap:20px; font-size:12px; font-weight:bold;">
+                    <span>المعلم: ${teacherInfo.name}</span>
+                    <span>|</span>
+                    <span>الفصل الدراسي: ${currentSemester === '1' ? 'الأول' : 'الثاني'}</span>
+                </div>
+            </div>
+            
+            <table>
+                <thead><tr>${headerHtml}</tr></thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+            
+            <div style="margin-top:30px; display:flex; justify-content:space-between; padding:0 40px; font-weight:bold; color:#000;">
+                <p>توقيع المعلم: .................</p>
+                <p>يعتمد مدير المدرسة: .................</p>
+            </div>
+        </div>
+      `;
+
+      await generateAndSharePDF(html, `Grades_Record_${gradesClass}.pdf`, true);
+  };
+
+  // --- CERTIFICATES PRINT LOGIC ---
   const printCertificates = async () => {
-      const targetStudents = students.filter(s => selectedCertStudents.includes(s.id));
-      if (targetStudents.length === 0) return alert('الرجاء اختيار طلاب');
-      
-      const schoolName = teacherInfo?.school || '...................';
-      const teacherName = teacherInfo?.name || '...................';
-      const academicYearText = teacherInfo?.academicYear || `${new Date().getFullYear()} / ${new Date().getFullYear() + 1}`;
-      const governorate = teacherInfo?.governorate || '.........';
-      
-      const emblemSrc = teacherInfo?.ministryLogo || await getBase64Image('oman_logo.png') || await getBase64Image('icon.png');
-      const stampSrc = teacherInfo?.stamp || ''; 
-      
-      const certTitle = certificateSettings.title;
-      const certBody = certificateSettings.bodyText;
-      const useCustomBg = !!certificateSettings.backgroundImage;
-      const bgImage = certificateSettings.backgroundImage || '';
-      const showShapes = certificateSettings.showDefaultDesign && !useCustomBg;
+      const targets = filteredStudentsForCert.filter(s => selectedCertStudents.includes(s.id));
+      if (targets.length === 0) return;
 
-      const element = document.createElement('div');
-      element.innerHTML = targetStudents.map(student => `
-        <div class="cert-body" style="${useCustomBg ? `background-image: url('${bgImage}'); background-size: 100% 100%; border: none;` : ''}">
-            ${showShapes ? `
-            <div class="frame-border"><div class="frame-corner c-tl"></div><div class="frame-corner c-tr"></div><div class="frame-corner c-bl"></div><div class="frame-corner c-br"></div></div>
-            <div class="deco-tri tri-1"></div><div class="deco-tri tri-2"></div>
-            ` : ''}
+      let pagesHtml = '';
+      
+      targets.forEach((s) => {
+          const placeholderRegex = /(الطالبة|الطالب)/g;
+          const hasPlaceholder = placeholderRegex.test(certificateSettings.bodyText);
+          let body = certificateSettings.bodyText.replace(placeholderRegex, `<span style="font-weight:900; color:#000;">${s.name}</span>`);
+          
+          const bgStyle = certificateSettings.backgroundImage 
+            ? `background-image: url('${certificateSettings.backgroundImage}'); background-size: cover; background-position: center;` 
+            : `background-color: #ffffff; border: 15px double #059669;`;
 
-            <div class="content-wrapper">
-                <div class="header-container">
-                    ${emblemSrc ? `<img src="${emblemSrc}" class="oman-logo" />` : ''}
-                    <div class="ministry-info">
-                        سلطنة عمان<br/>
-                        وزارة التربية والتعليم<br/>
-                        المديرية العامة للتربية والتعليم لمحافظة ${governorate}<br/>
-                        مدرسة ${schoolName}
+          const headerHtml = `
+            <div style="width:100%; text-align:center; display:flex; flex-direction:column; align-items:center; margin-bottom:5px; color:#000;">
+                ${teacherInfo.ministryLogo ? `<img src="${teacherInfo.ministryLogo}" style="height:60px; width:auto; object-fit:contain; margin-bottom:5px;" />` : ''}
+                <h3 style="font-weight:bold; font-size:14px; margin:1px;">سلطنة عمان</h3>
+                <h3 style="font-weight:bold; font-size:14px; margin:1px;">وزارة التربية والتعليم</h3>
+                <h3 style="font-weight:bold; font-size:14px; margin:1px;">مدرسة ${teacherInfo.school}</h3>
+            </div>
+          `;
+
+          pagesHtml += `
+            <div class="force-print-style" style="width:100%; height:100vh; position:relative; ${bgStyle} padding:20px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; text-align:center; page-break-after: always; color:#000000 !important; background-color:#fff;">
+                ${!certificateSettings.backgroundImage ? `
+                    <div style="position:absolute; top:25px; left:25px; right:25px; bottom:25px; border: 2px solid #059669; pointer-events:none;"></div>
+                    <div style="position:absolute; top:20px; left:20px; width:50px; height:50px; border-top:5px solid #059669; border-left:5px solid #059669;"></div>
+                    <div style="position:absolute; top:20px; right:20px; width:50px; height:50px; border-top:5px solid #059669; border-right:5px solid #059669;"></div>
+                    <div style="position:absolute; bottom:20px; left:20px; width:50px; height:50px; border-bottom:5px solid #059669; border-left:5px solid #059669;"></div>
+                    <div style="position:absolute; bottom:20px; right:20px; width:50px; height:50px; border-bottom:5px solid #059669; border-right:5px solid #059669;"></div>
+                ` : ''}
+                
+                <div style="z-index:10; width:95%; height:100%; display:flex; flex-direction:column; justify-content:flex-start; background:rgba(255,255,255,0.92); padding:30px; padding-top:10px; border-radius:30px; box-shadow:none; color: #000000 !important;">
+                    ${headerHtml}
+                    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; margin-top:-20px;">
+                        <h1 style="font-size:48px; color:#047857 !important; margin-bottom:15px; font-weight:900; font-family:'Tajawal', serif;">${certificateSettings.title}</h1>
+                        
+                        ${!hasPlaceholder ? `<h2 style="font-size:42px; color:#000000 !important; margin:10px 0 20px 0; font-weight:900; text-decoration:underline; text-decoration-color:#059669; text-underline-offset: 8px;">${s.name}</h2>` : ''}
+
+                        <p style="font-size:24px; line-height:1.6; margin-bottom:20px; font-weight:bold; color:#374151 !important; max-width:80%;">${body}</p>
                     </div>
-                </div>
-                
-                <div class="main-title">${certTitle}<div class="title-underline"></div></div>
-                
-                <div class="cert-text-block">
-                    ${certBody.replace(/ الطالب /g, ` <span class="highlight-name">${student.name}</span> `)} <br/>
-                    للصف <span class="highlight-data">${student.classes[0] || '....'}</span> للعام الدراسي <span class="highlight-data">${academicYearText}</span><br/>
-                    <span style="font-size: 18px; color: #666;">متمنين له دوام التوفيق والنجاح</span>
-                </div>
-                
-                <div class="signatures-row">
-                    <div class="sig-box">
-                        <div class="sig-title">معلم المادة</div>
-                        <div class="sig-line">${teacherName}</div>
-                    </div>
-                    ${stampSrc ? `<img src="${stampSrc}" class="stamp-img" />` : ''}
-                    <div class="sig-box">
-                        <div class="sig-title">مدير المدرسة</div>
-                        <div class="sig-line">.........................</div>
+                    
+                    <div style="margin-top:20px; display:flex; justify-content:space-between; width:100%; padding:0 20px; color: #000000 !important; align-items:flex-end;">
+                        <div style="text-align:center; width:30%;">
+                            <p style="font-size:18px; color:#000000 !important; margin-bottom:40px; font-weight:bold;">معلم المادة</p>
+                            <p style="font-size:20px; font-weight:900; color:#000000 !important;">${teacherInfo.name}</p>
+                        </div>
+                        <div style="text-align:center; width:40%;">
+                            ${teacherInfo.stamp ? `<img src="${teacherInfo.stamp}" style="width:120px; opacity:0.8; mix-blend-mode:multiply; transform: rotate(-10deg);" />` : ''}
+                        </div>
+                        <div style="text-align:center; width:30%;">
+                            <p style="font-size:18px; color:#000000 !important; margin-bottom:40px; font-weight:bold;">مدير المدرسة</p>
+                            <p style="font-size:20px; font-weight:900; color:#000000 !important;">....................</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-      `).join('');
+          `;
+      });
 
-      // Add Styles to element for PDF generation
-      const style = document.createElement('style');
-      style.innerHTML = `
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap');
-        .cert-body { width: 297mm; height: 210mm; position: relative; background: #fff; overflow: hidden; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; padding: 10mm; justify-content: space-between; page-break-after: always; font-family: 'Tajawal', sans-serif; direction: rtl; }
-        .cert-body:last-child { page-break-after: auto; }
-        .frame-border { position: absolute; top: 8mm; left: 8mm; right: 8mm; bottom: 8mm; border: 2px solid #0891b2; border-radius: 10px; z-index: 1; background: transparent; }
-        .frame-corner { position: absolute; width: 40px; height: 40px; z-index: 2; border: 6px solid #f59e0b; }
-        .c-tl { top: -2px; left: -2px; border-right: none; border-bottom: none; border-radius: 10px 0 0 0; }
-        .c-tr { top: -2px; right: -2px; border-left: none; border-bottom: none; border-radius: 0 10px 0 0; }
-        .c-bl { bottom: -2px; left: -2px; border-right: none; border-top: none; border-radius: 0 0 0 10px; }
-        .c-br { bottom: -2px; right: -2px; border-left: none; border-top: none; border-radius: 0 0 10px 0; }
-        .deco-tri { position: absolute; width: 0; height: 0; opacity: 0.1; z-index: 0; }
-        .tri-1 { top: 0; left: 0; border-top: 180px solid #0891b2; border-right: 180px solid transparent; }
-        .tri-2 { bottom: 0; right: 0; border-bottom: 180px solid #0891b2; border-left: 180px solid transparent; }
-        .content-wrapper { position: relative; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center; }
-        .header-container { text-align: center; margin-bottom: 5px; width: 100%; }
-        .oman-logo { height: 70px; width: auto; margin-bottom: 5px; object-fit: contain; }
-        .ministry-info { font-family: 'Tajawal', sans-serif; font-size: 14px; color: #444; line-height: 1.4; font-weight: bold; }
-        .main-title { font-family: 'Aref Ruqaa', serif; font-size: 50px; color: #1e293b; margin: 5px 0 20px 0; position: relative; }
-        .title-underline { width: 120px; height: 3px; background: #f59e0b; margin: 0 auto; border-radius: 2px; }
-        .cert-text-block { font-family: 'Amiri', serif; font-size: 24px; text-align: center; line-height: 2; color: #1f2937; width: 90%; margin-top: 10px; flex-grow: 1; }
-        .highlight-name { color: #0e7490; font-weight: bold; font-size: 34px; padding: 0 10px; display: inline-block; }
-        .highlight-data { color: #b45309; font-weight: bold; padding: 0 5px; }
-        .signatures-row { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 60px 20px 60px; margin-top: auto; position: relative; }
-        .sig-box { text-align: center; width: 250px; position: relative; z-index: 2; }
-        .sig-title { font-family: 'Tajawal', sans-serif; font-size: 18px; font-weight: bold; color: #64748b; margin-bottom: 30px; }
-        .sig-line { font-family: 'Amiri', serif; font-size: 20px; font-weight: bold; color: #000; border-top: 1px solid #cbd5e1; padding-top: 5px; display: block; }
-        .stamp-img { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%) rotate(-10deg); width: 110px; height: auto; opacity: 0.85; mix-blend-mode: multiply; z-index: 1; }
-      `;
-      element.appendChild(style);
-
-      await generateAndSharePDF(element, `Certificates_${certClass}.pdf`, true);
+      await generateAndSharePDF(pagesHtml, `Certificates.pdf`, true);
   };
 
-  // --- Summon Logic ---
   const getReasonText = () => {
     switch (reasonType) {
         case 'absence': return 'تكرار الغياب عن المدرسة وتأثيره على المستوى الدراسي';
@@ -444,385 +523,257 @@ const Reports: React.FC = () => {
     }
   };
 
-  const handleAssetUpload = (key: 'stamp' | 'ministryLogo', e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              setTeacherInfo(prev => ({ ...prev, [key]: reader.result as string }));
-          };
-          reader.readAsDataURL(file);
-      }
+  // --- 3. SUMMON LETTER PRINT LOGIC ---
+  const handlePrintSummon = async () => {
+      const studentName = availableStudentsForSummon.find(s=>s.id===summonStudentId)?.name || '';
+      if (!studentName) { alert('يرجى اختيار الطالب أولاً'); return; }
+
+      const proceduresHtml = takenProcedures.length > 0 
+        ? `<div style="margin-top:20px; text-align:right; border:1px dashed #000; padding:15px; border-radius:10px;">
+             <p style="font-weight:bold; text-decoration:underline; margin-bottom:10px;">الإجراءات المتخذة مسبقاً مع الطالب:</p>
+             <ul style="list-style-type:disc; padding-right:20px; margin:0;">
+                ${takenProcedures.map(p => `<li style="margin-bottom:5px;">${p}</li>`).join('')}
+             </ul>
+           </div>` 
+        : '';
+
+      const html = `
+        <div class="force-print-style" style="padding:50px; font-family:'Tajawal', serif; color:#000000 !important; background:#ffffff !important; direction:rtl; text-align:right; width:100%; height:100%;">
+            <div style="text-align:center; margin-bottom:40px;">
+                ${teacherInfo.ministryLogo ? `<img src="${teacherInfo.ministryLogo}" style="width:60px; height:auto; margin:0 auto 15px auto; display:block;" />` : ''}
+                <h3 style="font-weight:bold; font-size:16px; margin:5px; color:#000000 !important;">سلطنة عمان</h3>
+                <h3 style="font-weight:bold; font-size:16px; margin:5px; color:#000000 !important;">وزارة التربية والتعليم</h3>
+                <h3 style="font-weight:bold; font-size:16px; margin:5px; color:#000000 !important;">مدرسة ${teacherInfo.school}</h3>
+            </div>
+            
+            <div style="border-bottom:2px solid #000; padding-bottom:20px; margin-bottom:30px; color: #000000 !important;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span style="font-weight:bold; font-size:18px; color:#000000 !important;">الفاضل/ ولي أمر الطالب: ${studentName}</span>
+                    <span style="font-size:18px; color:#000000 !important;">المحترم</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="font-weight:bold; font-size:16px; color:#000000 !important;">الصف: ${summonClass}</span>
+                    <span style="font-size:16px; color:#000000 !important;">التاريخ: ${issueDate}</span>
+                </div>
+            </div>
+
+            <h2 style="text-align:center; font-weight:900; font-size:24px; text-decoration:underline; margin-bottom:30px; color:#000000 !important;">استدعاء ولي أمر</h2>
+            
+            <p style="line-height:2.2; font-size:18px; text-align:justify; margin-bottom:20px; color:#000000 !important;">
+                السلام عليكم ورحمة الله وبركاته،،،<br/>
+                نود إفادتكم بضرورة الحضور إلى المدرسة يوم <strong>${summonDate}</strong> الساعة <strong>${summonTime}</strong>، وذلك لمناقشة الأمر التالي:
+            </p>
+            
+            <div style="background:#f9f9f9; border:1px solid #000; padding:20px; text-align:center; font-size:20px; font-weight:bold; margin-bottom:30px; border-radius:10px; color:#000000 !important;">
+                ${getReasonText()}
+            </div>
+
+            ${proceduresHtml}
+            
+            <p style="line-height:2; font-size:18px; text-align:justify; margin-top:30px; margin-bottom:50px; color:#000000 !important;">
+                شاكرين لكم حسن تعاونكم واهتمامكم بمصلحة الطالب.
+            </p>
+            
+            <div style="display:flex; justify-content:space-between; margin-top:80px; padding:0 20px; color: #000000 !important; align-items:flex-end; position:relative;">
+                <div style="text-align:center; width:30%;">
+                    <p style="font-weight:bold; font-size:18px; margin-bottom:40px; color:#000000 !important;">معلم المادة</p>
+                    <p style="font-size:18px; color:#000000 !important;">${teacherInfo.name}</p>
+                </div>
+                <div style="text-align:center; width:40%; display: flex; justify-content: center; align-items: center;">
+                    ${teacherInfo.stamp ? `<img src="${teacherInfo.stamp}" style="width:130px; opacity:0.8; mix-blend-mode:multiply; transform: rotate(-10deg);" />` : ''}
+                </div>
+                <div style="text-align:center; width:30%;">
+                    <p style="font-weight:bold; font-size:18px; margin-bottom:40px; color:#000000 !important;">مدير المدرسة</p>
+                    <p style="font-size:18px; color:#000000 !important;">.........................</p>
+                </div>
+            </div>
+        </div>
+      `;
+      
+      await generateAndSharePDF(html, `Summon_${studentName}.pdf`, false);
   };
 
   const handleSendSummonWhatsApp = async () => {
-    const student = students.find(s => s.id === summonStudentId);
-    if (!student || !student.parentPhone) return alert('لا يوجد رقم هاتف');
-    if (!letterRef.current) return alert('Error');
+    const student = availableStudentsForSummon.find(s => s.id === summonStudentId);
+    if (!student || !student.parentPhone) {
+        alert('لا يوجد رقم هاتف مسجل لولي الأمر');
+        return;
+    }
 
-    setIsGeneratingPdf(true);
-    await new Promise(r => setTimeout(r, 500)); 
+    let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 5) {
+        alert('رقم الهاتف غير صحيح');
+        return;
+    }
+    
+    if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
+    if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
+    else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
 
-    try {
-        const canvas = await html2canvas(letterRef.current, { scale: 2, useCORS: true, backgroundColor: '#fff' });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        
-        let pdfDataUri = pdf.output('datauristring');
-        
-        // --- PROVEN WHATSAPP LOGIC ---
-        // تنظيف وتنسيق رقم الهاتف
-        let cleanPhone = student.parentPhone.replace(/[^0-9]/g, '');
-        if (cleanPhone.startsWith('00')) cleanPhone = cleanPhone.substring(2);
-        if (cleanPhone.length === 8) cleanPhone = '968' + cleanPhone;
-        else if (cleanPhone.length === 9 && cleanPhone.startsWith('0')) cleanPhone = '968' + cleanPhone.substring(1);
+    const msg = encodeURIComponent(`السلام عليكم، ولي أمر الطالب ${student.name}.\nنود إفادتكم بضرورة الحضور للمدرسة يوم ${summonDate} الساعة ${summonTime}.\nالسبب: ${getReasonText()}`);
 
-        const msg = encodeURIComponent(`السلام عليكم، مرفق خطاب استدعاء للطالب ${student.name}.`);
-        
-        // Mobile: Share PDF
-        if (Capacitor.isNativePlatform()) {
-             const base64Data = pdfDataUri.split(',')[1];
-             const fileName = `Summon_${student.name}.pdf`;
-             const result = await Filesystem.writeFile({ path: fileName, data: base64Data, directory: Directory.Cache });
-             
-             await Share.share({ 
-                 title: 'خطاب استدعاء', 
-                 text: `خطاب استدعاء للطالب ${student.name}`,
-                 url: result.uri,
-                 dialogTitle: 'إرسال عبر واتساب'
-             });
-        } else {
-             // Web/Desktop: Download PDF and open WhatsApp
-             pdf.save(`Summon_${student.name}.pdf`);
-             
-             // استخدام نفس المنطق القوي الموجود في التفعيل
-             if (window.electron) {
-                 window.electron.openExternal(`whatsapp://send?phone=${cleanPhone}&text=${msg}`);
-             } else {
-                 const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
-                 try {
-                     window.open(universalUrl, '_blank');
-                 } catch (e) {
-                     window.open(universalUrl, '_blank');
-                 }
-             }
+    if (window.electron) {
+        window.electron.openExternal(`whatsapp://send?phone=${cleanPhone}&text=${msg}`);
+    } else {
+        const universalUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`;
+        try {
+            if (Capacitor.isNativePlatform()) {
+                await Browser.open({ url: universalUrl });
+            } else {
+                window.open(universalUrl, '_blank');
+            }
+        } catch (e) {
+            window.open(universalUrl, '_blank');
         }
-
-    } catch (e) { console.error(e); alert('Error generating PDF'); } finally { setIsGeneratingPdf(false); }
+    }
   };
 
+  const tabItems = [
+    { id: 'student_report', label: 'تقرير طالب', icon: User, color: 'text-indigo-400', bg: 'bg-indigo-900/20', border: 'border-indigo-500/30' },
+    { id: 'grades_record', label: 'سجل الدرجات', icon: BarChart3, color: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-500/30' },
+    { id: 'certificates', label: 'الشهادات', icon: Award, color: 'text-emerald-400', bg: 'bg-emerald-900/20', border: 'border-emerald-500/30' },
+    { id: 'summon', label: 'استدعاء ولي أمر', icon: FileWarning, color: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-500/30' },
+  ];
+  
   if (viewingStudent) {
-      return (
-          <StudentReport 
-              student={viewingStudent}
-              onUpdateStudent={handleUpdateStudent}
-              currentSemester={currentSemester}
-              teacherInfo={teacherInfo}
-              onBack={() => setViewingStudent(null)}
-          />
-      );
+      return <StudentReport student={viewingStudent} onUpdateStudent={handleUpdateStudent} currentSemester={currentSemester} teacherInfo={teacherInfo} onBack={() => setViewingStudent(null)} />;
   }
 
   return (
-    // ... UI Code remains mostly the same, ensuring buttons call the updated functions ...
     <div className="flex flex-col w-full max-w-5xl mx-auto space-y-6 pb-20">
-      
-      <div className="flex items-center gap-4 pt-4 px-2">
-        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-200">
-            <FileSpreadsheet size={28} />
-        </div>
-        <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">مركز التقارير</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">طباعة الكشوفات والتقارير والشهادات والاستدعاءات</p>
-        </div>
+      <div className="flex items-center gap-4 pt-4 px-2 mb-2">
+        <div className="w-14 h-14 glass-icon rounded-2xl flex items-center justify-center text-rose-500 shadow-lg border border-rose-500/20"><FileSpreadsheet size={30} /></div>
+        <div><h2 className="text-3xl font-black text-white tracking-tight">مركز التقارير</h2><p className="text-gray-400 text-xs font-bold mt-1">طباعة الكشوفات والشهادات والاستدعاءات</p></div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-        <button onClick={() => setActiveTab('student_report')} className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'student_report' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-card text-slate-600 dark:text-white/60'}`}>
-            <User size={18} /> تقرير طالب
-        </button>
-        <button onClick={() => setActiveTab('grades_record')} className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'grades_record' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-card text-slate-600 dark:text-white/60'}`}>
-            <BarChart3 size={18} /> سجل الدرجات
-        </button>
-        <button onClick={() => setActiveTab('certificates')} className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'certificates' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-card text-slate-600 dark:text-white/60'}`}>
-            <Award size={18} /> شهادات التفوق
-        </button>
-        <button onClick={() => setActiveTab('summon')} className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'summon' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-card text-slate-600 dark:text-white/60'}`}>
-            <FileWarning size={18} /> استدعاء ولي أمر
-        </button>
+      <div className="grid grid-cols-2 gap-3 px-1">
+        {tabItems.map((item) => (
+            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex items-center gap-4 p-4 rounded-[1.5rem] transition-all duration-300 border group shimmer-hover ${activeTab === item.id ? 'glass-heavy border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)] scale-[1.02]' : 'glass-card border-white/5 hover:bg-white/5 opacity-70 hover:opacity-100'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border backdrop-blur-xl transition-all duration-500 group-hover:scale-110 ${activeTab === item.id ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : `${item.bg} ${item.color} ${item.border}`}`}><item.icon size={24} strokeWidth={2} /></div>
+                <div className="text-right"><span className={`block font-black text-sm transition-colors ${activeTab === item.id ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>{item.label}</span></div>
+            </button>
+        ))}
       </div>
 
-      <div className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/20 min-h-[400px]">
-        
-        {/* --- STUDENT REPORT TAB --- */}
+      <div className="glass-card p-6 md:p-8 rounded-[2.5rem] border border-white/10 min-h-[400px] shadow-xl relative overflow-hidden transition-all duration-500 bg-[#1f2937]">
         {activeTab === 'student_report' && (
-            <div className="space-y-6">
-                 <div className="pb-4 border-b border-white/10">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">تقرير الطالب الشامل</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">عرض وطباعة تقرير مفصل للطالب (درجات، سلوك، غياب)</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-gray-400">الفصل</label>
-                        <select value={stClass} onChange={(e) => setStClass(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-gray-400">اختر الطالب (للتقرير الفردي)</label>
-                         <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                            <option value="">اختر...</option>
-                            {filteredStudentsForStudentTab.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-                </div>
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                 <div className="pb-4 border-b border-white/10 flex items-center gap-3"><div className="p-2 bg-indigo-900/30 rounded-xl text-indigo-400"><User size={20}/></div><div><h3 className="font-black text-lg text-white">تقرير الطالب الشامل</h3><p className="text-gray-400 text-xs font-bold">عرض وطباعة تقرير مفصل</p></div></div>
                 
-                <div className="flex flex-col md:flex-row gap-4 pt-6 justify-end">
-                    <button 
-                        onClick={handlePrintClassReports} 
-                        disabled={isGeneratingPdf || filteredStudentsForStudentTab.length === 0} 
-                        className="bg-indigo-600/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20 disabled:opacity-50 px-6 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 hover:bg-indigo-600/20 active:scale-95 transition-all"
-                    >
-                        {isGeneratingPdf ? <Printer className="animate-pulse" size={18}/> : <Users size={18} />} طباعة تقارير الفصل بالكامل
-                    </button>
-
-                    <button 
-                        onClick={handleViewStudentReport}
-                        disabled={!selectedStudentId} 
-                        className="bg-indigo-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 active:scale-95 transition-all"
-                    >
-                        <FileText size={18} /> معاينة وطباعة التقرير الفردي
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {/* --- GRADES RECORD TAB --- */}
-        {activeTab === 'grades_record' && (
-            <div className="space-y-6">
-                <div className="pb-4 border-b border-white/10">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">سجل الدرجات (الفصل {currentSemester})</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">طباعة كشف درجات كامل للفصل المختار</p>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 dark:text-gray-400">الفصل الدراسي المراد طباعته</label>
-                    <select value={gradesClass} onChange={(e) => setGradesClass(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                        <option value="all">جميع الفصول</option>
-                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </div>
-
-                <div className="flex justify-end pt-6">
-                    <button 
-                        onClick={handlePrintGradeReport} 
-                        disabled={isGeneratingPdf} 
-                        className="bg-indigo-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 active:scale-95 transition-all"
-                    >
-                        {isGeneratingPdf ? <Printer className="animate-pulse" size={18}/> : <Printer size={18} />} طباعة سجل الدرجات
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {/* --- CERTIFICATES TAB --- */}
-        {activeTab === 'certificates' && (
-            <div className="space-y-6">
-                <div className="flex justify-between items-start pb-4 border-b border-white/10">
-                    <div>
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white">طباعة شهادات التفوق</h3>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">اختر الطلاب لطباعة شهادات التقدير لهم دفعة واحدة</p>
-                    </div>
-                    <button onClick={() => setShowCertSettingsModal(true)} className="p-2 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 rounded-xl transition-colors" title="إعدادات الشهادة">
-                        <Settings className="w-5 h-5" />
-                    </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-gray-400">الفصل</label>
-                        <select value={certClass} onChange={(e) => { setCertClass(e.target.value); setSelectedCertStudents([]); }} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <label className="text-xs font-bold text-slate-600 dark:text-gray-400">تحديد الطلاب ({selectedCertStudents.length})</label>
-                            <button onClick={selectAllCertStudents} className="text-[10px] text-blue-500 font-bold hover:underline">
-                                {selectedCertStudents.length === filteredStudentsForCert.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
-                            {filteredStudentsForCert.map(s => (
-                                <button 
-                                    key={s.id} 
-                                    onClick={() => toggleCertStudent(s.id)}
-                                    className={`p-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-between ${selectedCertStudents.includes(s.id) ? 'bg-indigo-600 text-white border-indigo-600' : 'glass-card text-slate-600 dark:text-white/60 border-white/10'}`}
-                                >
-                                    {s.name}
-                                    {selectedCertStudents.includes(s.id) && <Check size={14} />}
-                                </button>
+                {/* Hierarchy Filter */}
+                <div className="space-y-4">
+                    {availableGrades.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button onClick={() => setStGrade('all')} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${stGrade === 'all' ? 'bg-indigo-600 text-white border-indigo-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>كل المراحل</button>
+                            {availableGrades.map(g => (
+                                <button key={g} onClick={() => setStGrade(g)} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${stGrade === g ? 'bg-indigo-600 text-white border-indigo-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>صف {g}</button>
                             ))}
                         </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الفصل الدراسي</label><div className="relative"><select value={stClass} onChange={(e) => setStClass(e.target.value)} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]">{getClassesForGrade(stGrade).map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                        <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الطالب</label><div className="relative"><select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]"><option value="">اختر طالباً...</option>{filteredStudentsForStudentTab.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-6">
-                    <button 
-                        onClick={printCertificates} 
-                        disabled={isGeneratingPdf || selectedCertStudents.length === 0} 
-                        className="bg-amber-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:bg-amber-600 active:scale-95 transition-all"
-                    >
-                        {isGeneratingPdf ? <Printer className="animate-pulse" size={18}/> : <Award size={18} />} طباعة الشهادات
+                <div className="flex flex-col md:flex-row gap-4 pt-6 justify-end border-t border-white/10 mt-4">
+                    <button onClick={handlePrintClassReports} disabled={isGeneratingPdf || !stClass} className="bg-[#374151] text-white border border-gray-500 px-6 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:bg-[#4b5563] active:scale-95 transition-all">
+                        {isGeneratingPdf ? <Loader2 className="animate-spin w-4 h-4"/> : <Layers size={18} />} طباعة تقارير الفصل ({stClass})
+                    </button>
+                    <button onClick={handleViewStudentReport} disabled={!selectedStudentId} className="bg-indigo-600 disabled:opacity-50 text-white px-8 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 active:scale-95 transition-all">
+                        <FileText size={18} /> معاينة التقرير الفردي
                     </button>
                 </div>
             </div>
         )}
-
-        {/* --- SUMMON TAB --- */}
+        {activeTab === 'grades_record' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="pb-4 border-b border-white/10 flex items-center gap-3"><div className="p-2 bg-amber-900/30 rounded-xl text-amber-400"><BarChart3 size={20}/></div><div><h3 className="font-black text-lg text-white">سجل الدرجات</h3><p className="text-gray-400 text-xs font-bold">طباعة كشف درجات كامل</p></div></div>
+                <div className="space-y-4">
+                    {availableGrades.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button onClick={() => { setGradesGrade('all'); setGradesClass('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${gradesGrade === 'all' ? 'bg-amber-600 text-white border-amber-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>كل المراحل</button>
+                            {availableGrades.map(g => (
+                                <button key={g} onClick={() => { setGradesGrade(g); setGradesClass('all'); }} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${gradesGrade === g ? 'bg-amber-600 text-white border-amber-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>صف {g}</button>
+                            ))}
+                        </div>
+                    )}
+                    <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الفصل الدراسي</label><div className="relative"><select value={gradesClass} onChange={(e) => setGradesClass(e.target.value)} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]"><option value="all">جميع الفصول</option>{getClassesForGrade(gradesGrade).map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                </div>
+                <div className="flex justify-end pt-6"><button onClick={handlePrintGradeReport} disabled={isGeneratingPdf} className="bg-amber-500 disabled:opacity-50 text-white px-8 py-4 rounded-2xl font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:bg-amber-600 active:scale-95 transition-all w-full md:w-auto justify-center">{isGeneratingPdf ? <Loader2 className="animate-spin w-4 h-4"/> : <Printer size={18} />} طباعة السجل</button></div>
+            </div>
+        )}
+        {activeTab === 'certificates' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex justify-between items-start pb-4 border-b border-white/10"><div className="flex items-center gap-3"><div className="p-2 bg-emerald-900/30 rounded-xl text-emerald-400"><Award size={20}/></div><div><h3 className="font-black text-lg text-white">شهادات التفوق</h3><p className="text-gray-400 text-xs font-bold">طباعة شهادات تقدير</p></div></div><button onClick={() => setShowCertSettingsModal(true)} className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors text-white"><Settings className="w-5 h-5" /></button></div>
+                <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-4">
+                        {availableGrades.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                <button onClick={() => setCertGrade('all')} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${certGrade === 'all' ? 'bg-emerald-600 text-white border-emerald-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>كل المراحل</button>
+                                {availableGrades.map(g => (
+                                    <button key={g} onClick={() => setCertGrade(g)} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${certGrade === g ? 'bg-emerald-600 text-white border-emerald-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>صف {g}</button>
+                                ))}
+                            </div>
+                        )}
+                        <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الفصل الدراسي</label><div className="relative"><select value={certClass} onChange={(e) => { setCertClass(e.target.value); setSelectedCertStudents([]); }} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]">{getClassesForGrade(certGrade).map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                    </div>
+                    <div className="space-y-2"><div className="flex justify-between items-center px-2"><label className="text-[10px] font-black text-gray-400">تحديد الطلاب ({selectedCertStudents.length})</label><button onClick={selectAllCertStudents} className="text-[10px] text-emerald-400 font-bold hover:underline">{selectedCertStudents.length === filteredStudentsForCert.length ? 'إلغاء الكل' : 'تحديد الكل'}</button></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto custom-scrollbar p-1">{filteredStudentsForCert.map(s => (<button key={s.id} onClick={() => toggleCertStudent(s.id)} className={`p-3 rounded-xl border text-[10px] font-bold transition-all flex items-center justify-between group ${selectedCertStudents.includes(s.id) ? 'bg-emerald-600 text-white border-emerald-500 shadow-md' : 'glass-card text-white/70 border-white/10 hover:bg-white/10'}`}>{s.name}{selectedCertStudents.includes(s.id) && <Check size={14} className="bg-white/20 rounded-full p-0.5" />}</button>))}</div></div>
+                </div>
+                <div className="flex justify-end pt-6 border-t border-white/10 mt-2"><button onClick={printCertificates} disabled={isGeneratingPdf || selectedCertStudents.length === 0} className="bg-emerald-600 disabled:opacity-50 text-white px-8 py-4 rounded-2xl font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 active:scale-95 transition-all w-full md:w-auto justify-center">{isGeneratingPdf ? <Loader2 className="animate-spin w-4 h-4"/> : <Award size={18} />} طباعة الشهادات</button></div>
+            </div>
+        )}
         {activeTab === 'summon' && (
-            <div className="space-y-6">
-                <div className="pb-4 border-b border-white/10">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white">استدعاء ولي أمر</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">إنشاء خطابات استدعاء رسمية ومشاركتها عبر واتساب</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-gray-400">الفصل</label>
-                        <select value={summonClass} onChange={(e) => setSummonClass(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-gray-400">الطالب</label>
-                        <select value={summonStudentId} onChange={(e) => setSummonStudentId(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none">
-                            <option value="">اختر...</option>
-                            {availableStudentsForSummon.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 dark:text-gray-400">سبب الاستدعاء</label>
-                    <div className="flex flex-wrap gap-2">
-                        {[
-                            { id: 'absence', label: 'تكرار الغياب' },
-                            { id: 'truant', label: 'تسرب حصص' },
-                            { id: 'behavior', label: 'سلوكيات' },
-                            { id: 'level', label: 'تدني مستوى' },
-                            { id: 'other', label: 'آخر ..' },
-                        ].map((reason) => (
-                            <button key={reason.id} onClick={() => setReasonType(reason.id)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${reasonType === reason.id ? 'bg-rose-600 text-white border-rose-600 shadow-md' : 'glass-input text-slate-600 dark:text-gray-300'}`}>{reason.label}</button>
-                        ))}
-                    </div>
-                    {reasonType === 'other' && (
-                        <textarea value={customReason} onChange={(e) => setCustomReason(e.target.value)} placeholder="اكتب السبب..." className="w-full p-3 glass-input rounded-xl text-sm mt-2 resize-none h-20 outline-none" />
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="pb-4 border-b border-white/10 flex items-center gap-3"><div className="p-2 bg-rose-900/30 rounded-xl text-rose-400"><FileWarning size={20}/></div><div><h3 className="font-black text-lg text-white">استدعاء ولي أمر</h3><p className="text-gray-400 text-xs font-bold">إنشاء خطاب رسمي</p></div></div>
+                <div className="space-y-4">
+                    {availableGrades.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button onClick={() => setSummonGrade('all')} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${summonGrade === 'all' ? 'bg-rose-600 text-white border-rose-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>كل المراحل</button>
+                            {availableGrades.map(g => (
+                                <button key={g} onClick={() => setSummonGrade(g)} className={`px-4 py-1.5 text-[10px] font-bold whitespace-nowrap rounded-xl transition-all border ${summonGrade === g ? 'bg-rose-600 text-white border-rose-700' : 'glass-card bg-[#374151] border-gray-600 text-gray-300'}`}>صف {g}</button>
+                            ))}
+                        </div>
                     )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الفصل</label><div className="relative"><select value={summonClass} onChange={(e) => setSummonClass(e.target.value)} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]">{getClassesForGrade(summonGrade).map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                        <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">الطالب</label><div className="relative"><select value={summonStudentId} onChange={(e) => setSummonStudentId(e.target.value)} className="w-full p-4 glass-input rounded-2xl text-sm font-bold outline-none appearance-none cursor-pointer text-white bg-[#111827]"><option value="">اختر...</option>{availableStudentsForSummon.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select><ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                    </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                     <div className="space-y-2"><label className="text-xs font-bold text-slate-600 dark:text-gray-400">تاريخ الإصدار</label><input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none" /></div>
-                     <div className="space-y-2"><label className="text-xs font-bold text-slate-600 dark:text-gray-400">تاريخ الحضور</label><input type="date" value={summonDate} onChange={(e) => setSummonDate(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none" /></div>
-                     <div className="space-y-2"><label className="text-xs font-bold text-slate-600 dark:text-gray-400">وقت الحضور</label><input type="time" value={summonTime} onChange={(e) => setSummonTime(e.target.value)} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none" /></div>
+                <div className="space-y-2"><label className="text-[10px] font-black text-gray-400 mr-2">سبب الاستدعاء</label><div className="flex flex-wrap gap-2">{[{ id: 'absence', label: 'تكرار الغياب' }, { id: 'truant', label: 'تسرب حصص' }, { id: 'behavior', label: 'سلوكيات' }, { id: 'level', label: 'تدني مستوى' }, { id: 'other', label: 'آخر ..' }].map((reason) => (<button key={reason.id} onClick={() => setReasonType(reason.id)} className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all border ${reasonType === reason.id ? 'bg-rose-600 text-white border-rose-600 shadow-md transform scale-105' : 'glass-input text-gray-300 border-transparent hover:bg-white/10'}`}>{reason.label}</button>))}</div>{reasonType === 'other' && (<textarea value={customReason} onChange={(e) => setCustomReason(e.target.value)} placeholder="اكتب السبب هنا..." className="w-full p-4 glass-input rounded-2xl text-sm mt-2 resize-none h-24 outline-none border border-white/10 focus:border-rose-500 transition-colors text-white" />)}</div>
+                <div className="space-y-2 border-t border-white/10 pt-4"><label className="text-[10px] font-black text-gray-400 mr-2 flex items-center gap-2"><ListChecks className="w-3 h-3" /> الإجراءات المتخذة مسبقاً</label><div className="grid grid-cols-2 gap-2">{availableProcedures.map((proc) => (<button key={proc} onClick={() => toggleProcedure(proc)} className={`p-3 rounded-xl text-[10px] font-bold text-right transition-all border flex items-center justify-between ${takenProcedures.includes(proc) ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200' : 'glass-card border-white/5 text-gray-400 hover:bg-white/5'}`}>{proc}{takenProcedures.includes(proc) && <Check className="w-3 h-3 text-indigo-400" />}</button>))}</div></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 mr-2">تاريخ الإصدار</label><input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="w-full p-3 glass-input rounded-xl text-xs font-bold outline-none text-white bg-[#111827]" /></div>
+                     <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 mr-2">تاريخ الحضور</label><input type="date" value={summonDate} onChange={(e) => setSummonDate(e.target.value)} className="w-full p-3 glass-input rounded-xl text-xs font-bold outline-none text-white bg-[#111827]" /></div>
+                     <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 mr-2">وقت الحضور</label><input type="time" value={summonTime} onChange={(e) => setSummonTime(e.target.value)} className="w-full p-3 glass-input rounded-xl text-xs font-bold outline-none text-white bg-[#111827]" /></div>
                 </div>
-
-                <div className="pt-2">
-                   <button onClick={() => setShowAssetsSettings(!showAssetsSettings)} className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-indigo-600 transition-colors">
-                      <Settings size={14} /> <span>إعدادات الشعار والختم</span> <ChevronDown size={12} />
-                   </button>
-                   {showAssetsSettings && (
-                     <div className="p-4 glass-card border border-white/10 rounded-xl mt-2 grid grid-cols-2 gap-4">
-                        <div className="text-center">
-                            <p className="text-[10px] font-bold mb-2">شعار الوزارة</p>
-                            <div className="relative h-16 glass-input rounded-lg flex items-center justify-center cursor-pointer overflow-hidden group">
-                                <input type="file" accept="image/*" onChange={(e) => handleAssetUpload('ministryLogo', e)} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                                {teacherInfo.ministryLogo ? <img src={teacherInfo.ministryLogo} className="h-full object-contain"/> : <ImageIcon className="text-gray-400"/>}
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Upload className="text-white w-4 h-4"/></div>
-                            </div>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-[10px] font-bold mb-2">الختم المدرسي</p>
-                            <div className="relative h-16 glass-input rounded-lg flex items-center justify-center cursor-pointer overflow-hidden group">
-                                <input type="file" accept="image/*" onChange={(e) => handleAssetUpload('stamp', e)} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                                {teacherInfo.stamp ? <img src={teacherInfo.stamp} className="h-full object-contain"/> : <ImageIcon className="text-gray-400"/>}
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Upload className="text-white w-4 h-4"/></div>
-                            </div>
-                        </div>
-                     </div>
-                   )}
-                </div>
-
-                <div className="flex gap-4 pt-4 border-t border-white/10">
-                    <button onClick={() => setShowSummonPreview(true)} disabled={!summonStudentId} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50">
-                        معاينة
-                    </button>
-                    <button onClick={handleSendSummonWhatsApp} disabled={!summonStudentId} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-green-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                        <Share2 size={18} /> واتساب PDF
-                    </button>
-                </div>
+                <div className="flex gap-4 pt-6 border-t border-white/10 mt-2"><button onClick={() => setShowSummonPreview(true)} disabled={!summonStudentId} className="flex-1 py-4 bg-[#374151] border border-gray-600 text-white rounded-2xl font-black text-xs shadow-lg hover:bg-[#4b5563] transition-all disabled:opacity-50 flex items-center justify-center gap-2"><Eye size={18} /> معاينة الخطاب</button><button onClick={handleSendSummonWhatsApp} disabled={!summonStudentId} className="flex-1 py-4 bg-[#25D366] text-white rounded-2xl font-black text-xs shadow-lg shadow-green-500/30 hover:bg-[#128C7E] transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"><Share2 size={18} /> إرسال واتساب</button></div>
             </div>
         )}
-
       </div>
 
-      {/* ... (Modals remain unchanged) ... */}
-      
-      {/* Hidden Render for PDF generation */}
-      <div className="fixed left-[-9999px] top-0">
-          <div ref={letterRef} className="bg-white w-[210mm] min-h-[297mm] p-[20mm] text-black text-right font-serif relative">
-               <div className="text-center mb-8">
-                    <div className="flex justify-center mb-2 h-20">
-                        {teacherInfo.ministryLogo ? <img src={teacherInfo.ministryLogo} className="h-full object-contain"/> : null}
-                    </div>
-                    <h2 className="font-bold text-lg">سلطنة عمان</h2>
-                    <h3 className="font-bold">وزارة التربية والتعليم</h3>
-                    <h3 className="font-bold">مدرسة {teacherInfo.school}</h3>
-                </div>
-                <div className="mb-8 border-b-2 border-black pb-4">
-                    <div className="flex justify-between mb-2">
-                        <span className="font-bold">الفاضل/ ولي أمر الطالب: {availableStudentsForSummon.find(s=>s.id===summonStudentId)?.name}</span>
-                        <span>المحترم</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span className="font-bold">الصف: {summonClass}</span>
-                        <span>بتاريخ: {issueDate}</span>
+      {showSummonPreview && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowSummonPreview(false)}>
+            <div className="bg-white w-full max-w-4xl h-[90vh] rounded-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b flex justify-between items-center text-black bg-gray-50"><h3 className="font-bold">معاينة الخطاب</h3><div className="flex gap-2"><button onClick={handlePrintSummon} className="p-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 text-xs font-bold shadow-md hover:bg-indigo-700"><Printer size={16} /> طباعة PDF</button><button onClick={() => setShowSummonPreview(false)} className="p-2 hover:bg-gray-200 rounded-full"><X size={24}/></button></div></div>
+                <div className="flex-1 overflow-auto bg-gray-200 p-8 flex justify-center">
+                    <div id="report-content-print" className="force-print-style text-black" style={{backgroundColor: 'white', color: 'black', width: '210mm', minHeight: '297mm', padding: '20mm', textAlign: 'right', fontFamily: 'serif', position: 'relative', border: '4px solid black', boxSizing: 'border-box'}}>
+                       <div style={{textAlign:'center', marginBottom:'40px'}}>{teacherInfo.ministryLogo && <img src={teacherInfo.ministryLogo} style={{width:'60px', height:'auto', margin:'0 auto 15px auto', display:'block'}} alt="Logo" />}<h3 style={{fontWeight:'bold', fontSize:'16px', margin:'5px'}}>سلطنة عمان</h3><h3 style={{fontWeight:'bold', fontSize:'16px', margin:'5px'}}>وزارة التربية والتعليم</h3><h3 style={{fontWeight:'bold', fontSize:'16px', margin:'5px'}}>مدرسة {teacherInfo.school}</h3></div>
+                       <div style={{marginBottom: '2rem', borderBottom: '2px solid black', paddingBottom: '1rem'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}><span style={{fontWeight:'bold', fontSize:'18px'}}>الفاضل/ ولي أمر الطالب: {availableStudentsForSummon.find(s=>s.id===summonStudentId)?.name}</span><span style={{fontSize:'18px'}}>المحترم</span></div><div style={{display:'flex', justifyContent:'space-between'}}><span style={{fontWeight:'bold', fontSize:'16px'}}>الصف: {summonClass}</span><span style={{fontSize:'16px'}}>التاريخ: {issueDate}</span></div></div>
+                       <h2 style={{textAlign: 'center', fontWeight: 'bold', fontSize: '1.25rem', textDecoration: 'underline', marginBottom: '2rem'}}>استدعاء ولي أمر</h2>
+                       <p style={{lineHeight: '2', fontSize: '1.125rem', marginBottom: '1.5rem', textAlign: 'justify'}}>السلام عليكم ورحمة الله وبركاته...<br/>نود إفادتكم بضرورة الحضور إلى المدرسة يوم <strong>{summonDate}</strong> الساعة <strong>{summonTime}</strong>.</p>
+                       <div style={{background: '#f9f9f9', border: '1px solid black', padding: '20px', textAlign: 'center', fontWeight: 'bold', marginBottom: '30px'}}>{getReasonText()}</div>
+                       {takenProcedures.length > 0 && (<div style={{marginTop:'20px', textAlign:'right', border:'1px dashed #000', padding:'15px', borderRadius:'10px'}}><p style={{fontWeight:'bold', textDecoration:'underline', marginBottom:'10px'}}>الإجراءات المتخذة مسبقاً:</p><ul style={{listStyleType:'disc', paddingRight:'20px', margin:0}}>{takenProcedures.map(p => <li key={p} style={{marginBottom:'5px'}}>{p}</li>)}</ul></div>)}
+                       <div style={{display:'flex', justifyContent:'space-between', marginTop:'80px', padding:'0 20px', position:'relative', alignItems:'flex-end'}}><div style={{textAlign:'center', width:'30%'}}><p style={{fontWeight:'bold', fontSize:'18px', marginBottom:'40px'}}>معلم المادة</p><p style={{fontSize:'18px'}}>{teacherInfo.name}</p></div><div style={{textAlign:'center', width:'40%', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>{teacherInfo.stamp && <img src={teacherInfo.stamp} style={{width:'130px', opacity:0.8, mixBlendMode:'multiply', transform: 'rotate(-10deg)'}} alt="Stamp" />}</div><div style={{textAlign:'center', width:'30%'}}><p style={{fontWeight:'bold', fontSize:'18px', marginBottom:'40px'}}>مدير المدرسة</p><p style={{fontSize:'18px'}}>.........................</p></div></div>
                     </div>
                 </div>
-                <h2 className="text-center font-bold text-xl underline mb-8">استدعاء ولي أمر</h2>
-                <p className="leading-loose text-lg mb-6 text-justify">
-                    السلام عليكم ورحمة الله وبركاته،،،<br/>
-                    نود إفادتكم بضرورة الحضور إلى المدرسة يوم <strong>{summonDate}</strong> الساعة <strong>{summonTime}</strong>، وذلك لمناقشة الأمر التالي:
-                </p>
-                <div className="bg-gray-50 border p-4 text-center text-xl font-bold mb-8 rounded-lg">
-                    {getReasonText()}
-                </div>
-                <p className="leading-loose text-lg mb-12 text-justify">
-                    شاكرين لكم حسن تعاونكم واهتمامكم بمصلحة الطالب.
-                </p>
-                <div className="flex justify-between items-end mt-20 relative">
-                    <div className="text-center w-1/3">
-                        <p className="font-bold mb-8">معلم المادة</p>
-                        <p>{teacherInfo.name}</p>
-                    </div>
-                    {teacherInfo.stamp && (
-                        <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 w-32 opacity-80 mix-blend-multiply">
-                            <img src={teacherInfo.stamp} className="w-full" />
-                        </div>
-                    )}
-                    <div className="text-center w-1/3">
-                        <p className="font-bold mb-8">مدير المدرسة</p>
-                        <p>.........................</p>
-                    </div>
-                </div>
-          </div>
-      </div>
+            </div>
+        </div>
+      )}
 
+      <Modal isOpen={showCertSettingsModal} onClose={() => setShowCertSettingsModal(false)} className="max-w-md rounded-[2rem]">
+          <div className="text-center"><h3 className="font-black text-lg mb-4 text-white">إعدادات الشهادة</h3><div className="space-y-3"><div><label className="block text-xs font-bold text-gray-400 mb-1 text-right">عنوان الشهادة</label><input type="text" value={tempCertSettings.title} onChange={(e) => setTempCertSettings({...tempCertSettings, title: e.target.value})} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none text-white bg-[#111827]" /></div><div><label className="block text-xs font-bold text-gray-400 mb-1 text-right">نص الشهادة</label><textarea value={tempCertSettings.bodyText} onChange={(e) => setTempCertSettings({...tempCertSettings, bodyText: e.target.value})} className="w-full p-3 glass-input rounded-xl text-sm font-bold outline-none h-24 resize-none text-white bg-[#111827]" /></div><div className="flex gap-2 mt-4 pt-2"><button onClick={() => setShowCertSettingsModal(false)} className="flex-1 py-3 text-gray-400 font-bold text-xs hover:bg-white/5 rounded-xl">إلغاء</button><button onClick={handleSaveCertSettings} className="flex-[2] py-3 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-lg">حفظ الإعدادات</button></div></div></div>
+      </Modal>
     </div>
   );
 };

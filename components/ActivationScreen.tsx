@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ShieldCheck, Lock, Copy, Key, Smartphone, AlertTriangle, Loader2, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Clipboard } from '@capacitor/clipboard';
 import { Browser } from '@capacitor/browser';
@@ -16,25 +16,18 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
   const [error, setError] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Developer Mode Logic
-  const [clickCount, setClickCount] = useState(0);
 
-  const handleCopy = async () => {
-    await Clipboard.write({ string: deviceId });
+  const handleCopy = async (text: string) => {
+    await Clipboard.write({ string: text });
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleSendToDeveloper = async () => {
-      // الرقم الصحيح بدون كود الدولة
       const developerPhone = '98344555';
       const msg = encodeURIComponent(`السلام عليكم، أرغب في تفعيل تطبيق راصد.\nمعرف الجهاز الخاص بي هو: *${deviceId}*`);
-
-      // إضافة 968 في الرابط فقط لضمان عمل واتساب
       const fullPhone = `968${developerPhone}`;
 
-      // منطق التعامل مع المنصات المختلفة (ويندوز، هاتف، ويب)
       if (window.electron) {
           window.electron.openExternal(`whatsapp://send?phone=${fullPhone}&text=${msg}`);
       } else {
@@ -56,30 +49,13 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
     setIsLoading(true);
     setError('');
 
-    // محاكاة تأخير بسيط للشعور بالمعالجة
     setTimeout(() => {
         const success = onActivate(inputCode);
         if (!success) {
-            setError('كود التفعيل غير صحيح. تأكد من إرسال معرف الجهاز للمطور.');
+            setError('كود التفعيل غير صحيح.');
             setIsLoading(false);
         }
-        // في حالة النجاح، سيقوم App.tsx بإزالة هذه الشاشة
     }, 800);
-  };
-
-  // --- Developer Secret Gesture ---
-  const handleLogoClick = () => {
-      setClickCount(prev => prev + 1);
-      
-      if (clickCount + 1 >= 3) {
-          // Auto-fill Master Code (Must match code in App.tsx)
-          setInputCode('9834-4555');
-          setClickCount(0);
-          // Play a small sound or haptic here if desired
-      }
-      
-      // Reset count after 1 second of inactivity
-      setTimeout(() => setClickCount(0), 1000);
   };
 
   return (
@@ -90,8 +66,8 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
 
         <div className="glass-heavy w-full max-w-md p-8 rounded-[2.5rem] border border-white/20 shadow-2xl relative z-10 flex flex-col items-center text-center animate-in fade-in zoom-in duration-500">
             
-            <div className="mb-6 relative" onClick={handleLogoClick}>
-                <div className="w-24 h-24 glass-icon rounded-[2rem] flex items-center justify-center shadow-lg border border-white/30 cursor-pointer active:scale-95 transition-transform">
+            <div className="mb-6 relative">
+                <div className="w-24 h-24 glass-icon rounded-[2rem] flex items-center justify-center shadow-lg border border-white/30">
                     <BrandLogo className="w-14 h-14" showText={false} />
                 </div>
                 <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-xl shadow-md border-2 border-white dark:border-black">
@@ -109,7 +85,7 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
                 <div className="text-right space-y-2">
                     <label className="text-xs font-black text-indigo-500 pr-1">معرف الجهاز (Device ID)</label>
                     <div 
-                        onClick={handleCopy}
+                        onClick={() => handleCopy(deviceId)}
                         className="flex items-center justify-between p-4 bg-white/50 dark:bg-white/5 border-2 border-dashed border-indigo-300 dark:border-white/10 rounded-2xl cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-colors group relative"
                     >
                         <div className="flex items-center gap-3 overflow-hidden">
@@ -131,8 +107,6 @@ const ActivationScreen: React.FC<ActivationScreenProps> = ({ deviceId, onActivat
                         <MessageCircle className="w-4 h-4" />
                         إرسال المعرف للمطور (واتساب)
                     </button>
-
-                    <p className="text-[10px] text-slate-400 font-bold pr-1 pt-1">* اضغط الزر أعلاه لإرسال المعرف مباشرة والحصول على الكود.</p>
                 </div>
 
                 {/* Input Form */}

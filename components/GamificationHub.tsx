@@ -95,7 +95,7 @@ const GamificationHub: React.FC<GamificationHubProps> = ({ students, classes, on
     <div className="space-y-4 pb-24 md:pb-8 animate-in fade-in duration-500 text-slate-900 dark:text-white">
       
       {/* Header */}
-      <div className="bg-gradient-to-r from-violet-600/80 to-indigo-600/80 backdrop-blur-xl rounded-[2rem] p-6 text-white shadow-lg relative overflow-hidden border border-white/10">
+      <div className="bg-gradient-to-r from-violet-600/80 to-indigo-600/80 backdrop-blur-xl rounded-[2rem] p-6 text-white shadow-lg relative overflow-hidden border border-white/10 shimmer-hover">
           <div className="relative z-10">
               <h2 className="text-2xl font-black flex items-center gap-2 mb-1">
                   <Crown className="w-8 h-8 text-yellow-300" />
@@ -139,7 +139,7 @@ const GamificationHub: React.FC<GamificationHubProps> = ({ students, classes, on
                   <div 
                     key={student.id} 
                     onClick={() => { setSelectedStudent(student); setShowStore(true); }}
-                    className="glass-card rounded-3xl p-4 border border-white/20 shadow-sm relative overflow-hidden group cursor-pointer active:scale-95 transition-all"
+                    className="glass-card rounded-3xl p-4 border border-white/20 shadow-sm relative overflow-hidden group cursor-pointer active:scale-95 transition-all shimmer-hover"
                   >
                       {/* Rank Badge */}
                       <div className="absolute top-3 left-3 w-6 h-6 glass-icon rounded-full flex items-center justify-center text-[10px] font-black text-slate-600 dark:text-white z-10">
@@ -230,7 +230,7 @@ const GamificationHub: React.FC<GamificationHubProps> = ({ students, classes, on
                           <button 
                             key={reward.id}
                             onClick={() => handlePurchase(reward)}
-                            className={`relative p-4 rounded-2xl border-2 transition-all group flex flex-col items-center text-center ${reward.bg} border-transparent hover:border-indigo-200 dark:hover:border-white/20 active:scale-95`}
+                            className={`relative p-4 rounded-2xl border-2 transition-all group flex flex-col items-center text-center ${reward.bg} border-transparent hover:border-indigo-200 dark:hover:border-white/20 active:scale-95 shimmer-hover`}
                           >
                               <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{reward.icon}</div>
                               <h4 className="font-black text-slate-800 dark:text-slate-900 text-xs mb-1">{reward.title}</h4>
