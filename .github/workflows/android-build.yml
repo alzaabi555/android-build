@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'zulu'
+          distribution: 'temurin'
 
       - name: Install Dependencies
         run: npm install
@@ -30,20 +30,57 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Setup Android Platform (Force Recreate)
+      - name: Sync Android Platform
         run: |
-          # تنظيف جذري: حذف مجلد android تماماً إذا كان موجوداً
-          # هذا يضمن أن يقوم Capacitor بإنشاء نسخة جديدة وسليمة تحتوي على gradlew
-          echo "Removing existing android directory to force fresh generation..."
-          rm -rf android
-
-          # إضافة منصة أندرويد من الصفر
-          echo "Adding Android platform..."
-          npx cap add android
+          # تم إزالة أمر الحذف (rm -rf android) للحفاظ على التعديلات المخصصة في مجلد الأندرويد
+          # مثل AndroidManifest.xml و network_security_config.xml
           
-          # مزامنة ملفات الويب
-          echo "Syncing Capacitor..."
+          echo "Syncing Capacitor with Android platform..."
+          # إذا لم يكن المجلد موجوداً (لأول مرة)، نقوم بإضافته
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          
+          # نقوم بالمزامنة فقط لتحديث ملفات الويب والـ plugins
           npx cap sync android
+
+      - name: Create Dummy google-services.json
+        run: |
+          # إنشاء ملف google-services.json وهمي لتجنب فشل البناء في حال كان مطلوباً من قبل الإضافات
+          # يتم الإنشاء فقط إذا لم يكن الملف موجوداً بالفعل
+          if [ ! -f "android/app/google-services.json" ]; then
+            echo "Creating dummy google-services.json to prevent build failure..."
+            mkdir -p android/app
+            echo '{
+              "project_info": {
+                "project_number": "123456789012",
+                "project_id": "dummy-project",
+                "storage_bucket": "dummy-project.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:123456789012:android:321abc456def7890",
+                    "android_client_info": {
+                      "package_name": "com.madrasati.app"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "AIzaSyDummyKey"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
+              "configuration_version": "1"
+            }' > android/app/google-services.json
+          fi
 
       - name: Generate App Icons
         run: npx capacitor-assets generate --android
@@ -51,13 +88,13 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
-          # الآن يجب أن يكون gradlew موجوداً لأننا أعدنا إنشاء المجلد
           if [ -f "gradlew" ]; then
             chmod +x gradlew
-            ./gradlew assembleDebug
+            # إضافة --refresh-dependencies لإجبار إعادة تحميل المكتبات وتجنب أخطاء 403
+            ./gradlew assembleDebug --refresh-dependencies --stacktrace
           else
-            echo "Warning: Gradlew still not found despite recreation. Using system gradle..."
-            gradle assembleDebug
+            echo "Gradlew file not found. Falling back to system Gradle..."
+            gradle assembleDebug --refresh-dependencies --stacktrace
           fi
 
       - name: Upload APK
