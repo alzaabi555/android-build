@@ -1,0 +1,255 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+
+/* Basic Resets & Fonts */
+:root {
+  font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #111827; /* Gray 900 (Dark Background) */
+  color: #ffffff; /* FORCE WHITE TEXT GLOBALLY */
+  overflow: hidden; 
+}
+
+/* --- FORCE WHITE TEXT OVERRIDES (UI ONLY) --- */
+/* Apply white text generally, BUT EXCLUDE items inside .force-print-style */
+body :not(.force-print-style):not(.force-print-style *) {
+    --tw-text-opacity: 1 !important;
+    color: #ffffff !important; 
+}
+
+/* Ensure these classes force white ONLY outside of print context */
+:not(.force-print-style) > .text-slate-900, 
+:not(.force-print-style) > .text-slate-800, 
+:not(.force-print-style) > .text-gray-900, 
+:not(.force-print-style) > .text-black {
+    color: #ffffff !important;
+}
+
+.text-slate-400, .text-gray-400 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* --- FORCE PRINT STYLE (UI Override & Preview Fix) --- */
+/* This class explicitly forces BLACK text on WHITE background for reports/previews */
+.force-print-style {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+.force-print-style * {
+    color: #000000 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    -webkit-text-fill-color: #000000 !important; /* Safari fix */
+}
+
+/* Restore specific colors inside reports if needed (keeping them readable on white) */
+.force-print-style .text-emerald-600 { color: #059669 !important; -webkit-text-fill-color: #059669 !important; }
+.force-print-style .text-rose-600 { color: #e11d48 !important; -webkit-text-fill-color: #e11d48 !important; }
+.force-print-style .text-indigo-600 { color: #4f46e5 !important; -webkit-text-fill-color: #4f46e5 !important; }
+.force-print-style .bg-slate-50 { background-color: #f8fafc !important; }
+.force-print-style .bg-slate-100 { background-color: #f1f5f9 !important; }
+.force-print-style .border-slate-200 { border-color: #e2e8f0 !important; }
+.force-print-style .border-slate-300 { border-color: #cbd5e1 !important; }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2); 
+  border-radius: 4px;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glassmorphism Classes */
+.glass-heavy {
+  background: rgba(31, 41, 55, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.glass-card {
+  background: rgba(31, 41, 55, 0.7); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+}
+
+.glass-input {
+  background: rgba(17, 24, 39, 0.6); 
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff !important;
+}
+.glass-input::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+.glass-input:focus {
+  background: rgba(17, 24, 39, 0.9);
+  border-color: #818cf8;
+}
+
+.glass-icon {
+  background: rgba(55, 65, 81, 0.8);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* iOS Bottom Tab Bar */
+.ios-tab-bar {
+  background: rgba(31, 41, 55, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Utilities */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(129, 140, 248, 0.6);
+}
+
+.shimmer-hover {
+  position: relative;
+  overflow: hidden !important;
+}
+.shimmer-hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease-in-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.shimmer-hover:hover::before {
+  transform: translateX(100%);
+}
+
+/* --- وضع الطباعة الصارم (Strict Print Mode) --- */
+@media print {
+  @page {
+    margin: 10mm;
+    size: auto; 
+  }
+
+  /* 1. تصفير وتبييض الصفحة بالكامل */
+  body, html, #root, #main-scroll-container, .overflow-y-auto {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+    height: auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 2. إخفاء جميع عناصر التطبيق غير الضرورية */
+  body > * {
+    display: none !important;
+  }
+
+  /* 3. إظهار حاوية التقرير فقط وتنسيقها */
+  #report-content-print, .force-print-style, .print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    z-index: 9999;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 4. معالجة الجداول لمنع القص (هام جداً) */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 20px !important;
+    background-color: transparent !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+  
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* منع قص الصفوف */
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+    background-color: transparent !important;
+  }
+
+  /* حدود واضحة للخلايا */
+  th, td {
+    border: 1px solid #000000 !important;
+    padding: 6px 4px !important;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    font-size: 12px !important;
+  }
+  
+  th {
+      background-color: #f3f4f6 !important; /* رمادي فاتح جداً للعناوين */
+      font-weight: bold !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+  }
+
+  /* 5. إزالة الظلال والتأثيرات */
+  * {
+      text-shadow: none !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      transition: none !important;
+      animation: none !important;
+  }
+
+  /* 6. إخفاء الأزرار والقوائم */
+  button, nav, aside, .no-print, header, .header-actions, .ios-tab-bar {
+    display: none !important;
+  }
+}

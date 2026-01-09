@@ -1,91 +1,74 @@
 
 {
   "name": "student-manager-app",
-  "version": "3.3.0",
-  "description": "تطبيق راصد لإدارة حضور وغياب الطلاب وتسجيل السلوكيات",
-  "author": {
-    "name": "Mohammed Darwish Al-Zaabi",
-    "email": "developer@example.com"
-  },
+  "version": "3.6.0",
+  "description": "تطبيق راصد لإدارة حضور وغياب الطلاب - نسخة الآيفون",
+  "author": "Mohammed Al-Zaabi",
   "main": "electron/main.js",
   "scripts": {
-    "build": "npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --external:@capacitor/* --external:react --external:react-dom --external:recharts --external:lucide-react --external:framer-motion --external:xlsx --external:html2canvas --external:jspdf --external:@google/genai && cp index.html manifest.json www/ && (cp icon.png www/ || true) && (cp noor_logo.png www/ || true) && (cp oman_logo.png www/ || true)",
-    "prebuild": "mkdir -p www",
+    "dev": "concurrently \"npx tailwindcss -i ./index.css -o ./www/index.css --watch\" \"npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --sourcemap --watch --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"development\\\"\" \"npx capacitor-assets generate --icon-only && node copy-assets.js && electron .\"",
+    "build": "node -e \"require('fs').mkdirSync('www', {recursive: true})\" && npx tailwindcss -i ./index.css -o ./www/index.css --minify && npx esbuild index.tsx --bundle --outfile=www/index.js --format=esm --jsx=automatic --minify --target=es2020 --loader:.js=jsx --define:process.env.NODE_ENV=\\\"production\\\" && node copy-assets.js",
+    "prebuild": "node -e \"require('fs').mkdirSync('www', {recursive: true})\"",
     "sync": "npx cap sync",
-    "add-android": "npx cap add android",
-    "open-android": "npx cap open android",
-    "generate-icons": "npx capacitor-assets generate",
-    "electron:start": "npm run build && electron .",
-    "electron:pack": "npm run build && electron-builder --dir",
     "electron:dist": "npm run build && electron-builder"
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.0",
+    "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.0",
-    "@capacitor/core": "^6.2.0",
+    "@capacitor/core": "^6.0.0",
     "@capacitor/filesystem": "^6.0.0",
     "@capacitor/share": "^6.0.0",
     "@capacitor/clipboard": "^6.0.0",
-    "@capacitor/ios": "^6.2.0",
+    "@capacitor/ios": "^6.0.0",
     "@capacitor/browser": "^6.0.0",
     "@capacitor/local-notifications": "^6.0.0",
-    "cordova-plugin-inappbrowser": "^6.0.0",
-    "html-docx-js-typescript": "^0.1.5",
-    "lucide-react": "^0.454.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "recharts": "^2.12.7",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.13.3",
     "xlsx": "^0.18.5",
-    "framer-motion": "^10.16.4",
+    "framer-motion": "^11.15.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^2.5.1"
+    "jspdf": "^2.5.2",
+    "html2pdf.js": "^0.10.1",
+    "pdfjs-dist": "^3.11.174",
+    "dompurify": "^3.0.8",
+    "canvg": "^4.0.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.0",
+    "@capacitor/cli": "^6.0.0",
     "@capacitor/assets": "^3.0.5",
-    "esbuild": "^0.24.2",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
-    "concurrently": "^8.2.2",
-    "wait-on": "^7.2.0"
+    "esbuild": "^0.24.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3",
+    "concurrently": "^9.1.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.1"
   },
   "build": {
     "appId": "com.madrasati.app",
     "productName": "راصد",
-    "copyright": "Copyright © 2024 Mohammed Darwish Al-Zaabi",
-    "files": [
-      "www/**/*",
-      "electron/**/*"
-    ],
+    "npmRebuild": false,
     "directories": {
-      "buildResources": "assets",
       "output": "dist"
     },
+    "files": [
+      "www/**/*",
+      "electron/**/*",
+      "icon.png",
+      "package.json"
+    ],
     "win": {
       "target": "nsis",
-      "legalTrademarks": "Rased App",
-      "verifyUpdateCodeSignature": false,
-      "requestedExecutionLevel": "asInvoker"
+      "icon": "icon.png"
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "راصد",
-      "uninstallDisplayName": "راصد - إزالة التثبيت",
-      "runAfterFinish": true
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "icon.png",
-      "category": "public.app-category.education"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "icon.png",
-      "category": "Education"
+      "shortcutName": "راصد"
     }
   }
 }

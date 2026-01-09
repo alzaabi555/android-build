@@ -1,498 +1,399 @@
 
-import React, { useState, useEffect, Suspense, ErrorInfo, ReactNode } from 'react';
-import { Student, ScheduleDay, PeriodTime, Group } from './types';
+import React, { useState, useEffect } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { 
+  LayoutDashboard, Users, CalendarCheck, BarChart3, 
+  Settings as SettingsIcon, Grid, Trophy, Crown, 
+  Building2, Globe, Info, Lock, FileText, Menu, BookOpen
+} from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
 import AttendanceTracker from './components/AttendanceTracker';
 import GradeBook from './components/GradeBook';
-import StudentReport from './components/StudentReport';
-import UserGuide from './components/UserGuide';
-import About from './components/About';
-import Settings from './components/Settings';
 import Reports from './components/Reports';
-import BrandLogo from './components/BrandLogo';
-import ActivationScreen from './components/ActivationScreen';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { AppProvider, useApp } from './context/AppContext';
-import { useSchoolBell } from './hooks/useSchoolBell';
-import { 
-  LayoutDashboard, Users, CalendarCheck, BarChart3, FileText, 
-  Trophy, HelpCircle, Info, 
-  Menu, X, Moon, Sun, Zap, Settings as SettingsIcon, MoreHorizontal, Grid, FileWarning, FileSpreadsheet, Loader2
-} from 'lucide-react';
+import Settings from './components/Settings';
 import Modal from './components/Modal';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Capacitor } from '@capacitor/core';
+import GamificationHub from './components/GamificationHub';
+import GroupCompetition from './components/GroupCompetition';
+import MinistrySync from './components/MinistrySync';
+import NoorPlatform from './components/NoorPlatform';
+import About from './components/About';
+import UserGuide from './components/UserGuide';
+import ActivationScreen from './components/ActivationScreen';
+import BrandLogo from './components/BrandLogo';
+import { generateValidCode } from './utils/security';
+import { Loader2 } from 'lucide-react';
+import { useSchoolBell } from './hooks/useSchoolBell';
 
-// --- SECRET SALT (سر الخلطة) ---
-const SECRET_SALT = "RASED_APP_SECURE_2025_OMAN";
-// --- MASTER KEY (كود المطور) ---
-const MASTER_CODE = "9834-4555"; 
+// Helper to get persistent Device ID without native plugin dependency
+const getDeviceId = () => {
+    let id = localStorage.getItem('device_uuid');
+    if (!id) {
+        // Generate a pseudo-unique ID
+        id = 'DEV-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+        localStorage.setItem('device_uuid', id);
+    }
+    return id;
+};
 
-// --- Error Boundary ---
-interface ErrorBoundaryProps {
-  children?: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
-  static getDerivedStateFromError(_: Error): ErrorBoundaryState { return { hasError: true }; }
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
-  render() {
-    if (this.state.hasError) return <div className="p-10 text-center text-slate-800 dark:text-white glass-card m-10 rounded-3xl"><h1>حدث خطأ غير متوقع.</h1><button onClick={() => window.location.reload()} className="mt-4 bg-white/20 hover:bg-white/30 text-slate-800 dark:text-white px-6 py-2 rounded-xl backdrop-blur-md transition-all">إعادة تحميل</button></div>;
-    return (this as any).props.children;
-  }
-}
-
+// Main App Container
 const AppContent: React.FC = () => {
   const { 
-      students, setStudents, classes, setClasses, groups, setGroups,
-      schedule, setSchedule, periodTimes, setPeriodTimes,
-      teacherInfo, setTeacherInfo, currentSemester, setCurrentSemester,
-      isDataLoaded 
+      isDataLoaded, students, setStudents, classes, setClasses, 
+      teacherInfo, setTeacherInfo, schedule, setSchedule, 
+      periodTimes, setPeriodTimes, currentSemester, setCurrentSemester,
+      groups, setGroups 
   } = useApp();
-
-  const { theme, setTheme, isDark, toggleLowPower, isLowPower } = useTheme();
   
-  // State
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
-  const [showMoreMenu, setShowMoreMenu] = useState(false); 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  
+  // Notification State
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
+      return localStorage.getItem('bell_enabled') === 'true';
+  });
 
-  // --- Activation State ---
-  const [isActivated, setIsActivated] = useState<boolean>(false);
-  const [deviceId, setDeviceId] = useState<string>('');
-  const [checkingActivation, setCheckingActivation] = useState(true);
-
-  // Custom Hooks
+  // Activate Bell Hook
   useSchoolBell(periodTimes, schedule, notificationsEnabled);
 
-  // --- Activation Logic (Internal) ---
-  const simpleHash = (str: string): string => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-      }
-      return Math.abs(hash).toString(16).toUpperCase();
+  // Toggle Handler
+  const handleToggleNotifications = () => {
+      setNotificationsEnabled(prev => {
+          const newState = !prev;
+          localStorage.setItem('bell_enabled', String(newState));
+          return newState;
+      });
   };
+  
+  // Activation State
+  const [isActivated, setIsActivated] = useState<boolean>(() => {
+      return localStorage.getItem('rased_activated') === 'true';
+  });
+  const [deviceId] = useState<string>(getDeviceId());
 
-  const generateValidCode = (id: string): string => {
-      const raw = id.split('').reverse().join('') + SECRET_SALT;
-      const hash = simpleHash(raw);
-      const codePart = hash.padEnd(8, 'X').substring(0, 8); 
-      return `${codePart.substring(0, 4)}-${codePart.substring(4, 8)}`;
-  };
-
-  // وظيفة تنظيف الكود للمقارنة المرنة
-  const normalizeCode = (code: string) => {
-      if (!code) return '';
-      // إزالة أي شيء ليس حرفاً أو رقماً (المسافات، الشرطات، الرموز) وتحويل للأحرف الكبيرة
-      return code.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-  };
-
-  // --- Persistent Auth Logic ---
-  const AUTH_FILE = 'rased_auth_v1.json';
-
-  useEffect(() => {
-      const checkAuth = async () => {
-          let storedId = '';
-          let storedCode = '';
-
-          // 1. Try Loading from Filesystem (Native)
-          if (Capacitor.isNativePlatform()) {
-              try {
-                  const result = await Filesystem.readFile({
-                      path: AUTH_FILE,
-                      directory: Directory.Data,
-                      encoding: Encoding.UTF8
-                  });
-                  const data = JSON.parse(result.data as string);
-                  storedId = data.deviceId;
-                  storedCode = data.code;
-              } catch (e) {
-                  // File not found, fallback to localStorage
-              }
-          }
-
-          // 2. Fallback to LocalStorage (Web or First Run)
-          if (!storedId) {
-              storedId = localStorage.getItem('rased_device_id') || '';
-              storedCode = localStorage.getItem('rased_activation_code') || '';
-          }
-
-          // 3. Generate New ID if needed
-          if (!storedId) {
-              storedId = Math.random().toString(36).substring(2, 10).toUpperCase();
-              if (Capacitor.isNativePlatform()) {
-                  // Save new ID to FS
-                  await Filesystem.writeFile({
-                      path: AUTH_FILE,
-                      data: JSON.stringify({ deviceId: storedId, code: '' }),
-                      directory: Directory.Data,
-                      encoding: Encoding.UTF8
-                  });
-              }
-              localStorage.setItem('rased_device_id', storedId);
-          }
-
-          setDeviceId(storedId);
-
-          // 4. Validate Code (مع المقارنة المرنة)
-          if (storedCode) {
-              const validCode = generateValidCode(storedId);
-              
-              const cleanStored = normalizeCode(storedCode);
-              const cleanValid = normalizeCode(validCode);
-              const cleanMaster = normalizeCode(MASTER_CODE);
-
-              if (cleanStored === cleanValid || cleanStored === cleanMaster) {
-                  setIsActivated(true);
-              }
-          }
-          setCheckingActivation(false);
-      };
-
-      checkAuth();
-  }, []);
-
-  const handleActivateApp = (code: string): boolean => {
+  // Handle Activation Logic
+  const handleActivation = (code: string) => {
       const validCode = generateValidCode(deviceId);
-      
-      // التطبيع: تنظيف المدخلات من المسافات والرموز الزائدة
-      const cleanInput = normalizeCode(code);
-      const cleanValid = normalizeCode(validCode);
-      const cleanMaster = normalizeCode(MASTER_CODE);
-      
-      // المقارنة الآن تتم على الأحرف والأرقام فقط
-      if (cleanInput === cleanValid || cleanInput === cleanMaster) {
-          // Save to LocalStorage
-          localStorage.setItem('rased_activation_code', code);
-          
-          // Save to Filesystem (Native) for persistence
-          if (Capacitor.isNativePlatform()) {
-              Filesystem.writeFile({
-                  path: AUTH_FILE,
-                  data: JSON.stringify({ deviceId: deviceId, code: code }),
-                  directory: Directory.Data,
-                  encoding: Encoding.UTF8
-              }).catch(e => console.error('Failed to save auth', e));
-          }
-
+      // Master Code & Device Code Check
+      if (code === validCode || code === 'OMAN-MASTER-2026') {
+          localStorage.setItem('rased_activated', 'true');
           setIsActivated(true);
           return true;
       }
       return false;
   };
 
-  // Handlers
-  const handleUpdateTeacherInfo = (info: any) => setTeacherInfo(prev => ({ ...prev, ...info }));
-  const handleUpdateSchedule = (newSchedule: ScheduleDay[]) => setSchedule(newSchedule);
-  const handleToggleNotifications = () => {
-      setNotificationsEnabled(prev => {
-          const newVal = !prev;
-          if (newVal) alert('تم تفعيل جرس الحصص 🔔');
-          else alert('تم إيقاف جرس الحصص 🔕');
-          return newVal;
-      });
-  };
-
-  const handleNavigate = (tab: string) => {
-      setActiveTab(tab);
-      setIsSidebarOpen(false);
-      setShowMoreMenu(false);
-      if (tab !== 'report') setSelectedStudentForReport(null);
-  };
-
-  // Helper to handle student operations
-  const handleUpdateStudent = (updatedStudent: Student) => {
-      setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-  };
-
-  const handleAddStudentManually = (name: string, className: string, phone?: string, avatar?: string) => {
-      const newStudent: Student = {
-          id: Math.random().toString(36).substr(2, 9),
-          name,
-          grade: '',
-          classes: [className],
-          attendance: [],
-          behaviors: [],
-          grades: [],
-          parentPhone: phone,
-          avatar
-      };
-      setStudents(prev => [...prev, newStudent]);
-      if (!classes.includes(className)) setClasses(prev => [...prev, className]);
-  };
-
-  const handleBatchAddStudents = (newStudents: Student[]) => {
-      setStudents(prev => [...prev, ...newStudents]);
-      // Extract new classes
-      const newClasses = new Set(classes);
-      newStudents.forEach(s => s.classes.forEach(c => newClasses.add(c)));
-      setClasses(Array.from(newClasses));
-  };
-
-  const handleDeleteStudent = (id: string) => {
-      setStudents(prev => prev.filter(s => s.id !== id));
-  };
-
-  const handleAddClass = (name: string) => {
-      if (!classes.includes(name)) setClasses(prev => [...prev, name]);
-  };
-
-  const handleEditClass = (oldName: string, newName: string) => {
-      setClasses(prev => prev.map(c => c === oldName ? newName : c));
-      setStudents(prev => prev.map(s => ({
-          ...s,
-          classes: s.classes.map(c => c === oldName ? newName : c)
-      })));
-  };
-
-  const handleDeleteClass = (className: string) => {
-      if (confirm(`هل أنت متأكد من حذف الفصل "${className}"؟ سيتم حذف الفصل من قائمة الفصول، لكن الطلاب سيبقون مسجلين.`)) {
-          setClasses(prev => prev.filter(c => c !== className));
-      }
-  };
-
-  // --- Initial Loading Screen ---
-  if (!isDataLoaded || checkingActivation) {
+  // Handle Loading State
+  if (!isDataLoaded) {
       return (
-          <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-black">
-              <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 glass-icon rounded-3xl flex items-center justify-center shadow-xl animate-bounce">
-                      <BrandLogo showText={false} className="w-10 h-10" />
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-white/60 font-bold">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>جاري التحميل...</span>
-                  </div>
-              </div>
+          <div className="flex h-screen w-full items-center justify-center bg-[#111827]">
+              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
           </div>
       );
   }
 
-  // --- Lock Screen (If Not Activated) ---
+  // Show Activation Screen if not activated
   if (!isActivated) {
-      return <ActivationScreen deviceId={deviceId} onActivate={handleActivateApp} />;
+      return <ActivationScreen deviceId={deviceId} onActivate={handleActivation} />;
   }
 
-  // Render Main Content
-  const renderContent = () => {
-      if (activeTab === 'dashboard') {
-          return <Dashboard 
-              students={students} 
-              teacherInfo={teacherInfo} 
-              onUpdateTeacherInfo={handleUpdateTeacherInfo}
-              schedule={schedule}
-              onUpdateSchedule={handleUpdateSchedule}
-              onSelectStudent={(s) => { setSelectedStudentForReport(s); setActiveTab('report'); }}
-              onNavigate={handleNavigate}
-              onOpenSettings={() => setActiveTab('settings')} 
-              periodTimes={periodTimes}
-              setPeriodTimes={setPeriodTimes}
-              notificationsEnabled={notificationsEnabled}
-              onToggleNotifications={handleToggleNotifications}
-          />;
-      }
-      if (activeTab === 'students') {
-          return <StudentList 
-              students={students} 
-              classes={classes}
-              onAddClass={handleAddClass}
-              onAddStudentManually={handleAddStudentManually}
-              onBatchAddStudents={handleBatchAddStudents}
-              onUpdateStudent={handleUpdateStudent}
-              onDeleteStudent={handleDeleteStudent}
-              onViewReport={(s) => { setSelectedStudentForReport(s); setActiveTab('report'); }}
-              currentSemester={currentSemester}
-              onSemesterChange={setCurrentSemester}
-              onEditClass={handleEditClass}
-              onDeleteClass={handleDeleteClass}
-          />;
-      }
-      if (activeTab === 'attendance') return <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />;
-      if (activeTab === 'grades') return <GradeBook students={students} classes={classes} onUpdateStudent={handleUpdateStudent} setStudents={setStudents} currentSemester={currentSemester} onSemesterChange={setCurrentSemester} teacherInfo={teacherInfo} />;
-      
-      if (activeTab === 'report') {
-          if (selectedStudentForReport) return <StudentReport student={selectedStudentForReport} onUpdateStudent={handleUpdateStudent} currentSemester={currentSemester} teacherInfo={teacherInfo} onBack={() => setSelectedStudentForReport(null)} />;
-          return <StudentList students={students} classes={classes} onAddClass={handleAddClass} onAddStudentManually={handleAddStudentManually} onBatchAddStudents={handleBatchAddStudents} onUpdateStudent={handleUpdateStudent} onDeleteStudent={handleDeleteStudent} onViewReport={(s) => { setSelectedStudentForReport(s); setActiveTab('report'); }} currentSemester={currentSemester} onSemesterChange={setCurrentSemester} onEditClass={handleEditClass} onDeleteClass={handleDeleteClass} />;
-      }
-
-      if (activeTab === 'reports_center') return <Reports />;
-      if (activeTab === 'settings') return <Settings />;
-      if (activeTab === 'guide') return <UserGuide />;
-      if (activeTab === 'about') return <About />;
-      
-      return null;
+  // Navigation Handlers
+  const handleNavigate = (tab: string) => {
+      setActiveTab(tab);
+      setShowMoreMenu(false);
   };
 
-  // Main navigation items
-  const mainNavItems = [
+  // Helper Wrappers for Components
+  const handleUpdateStudent = (updated: any) => setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
+  const handleAddClass = (name: string) => setClasses(prev => [...prev, name]);
+  const handleAddStudent = (name: string, className: string, phone?: string, avatar?: string) => {
+      setStudents(prev => [...prev, { 
+          id: Math.random().toString(36).substr(2,9), 
+          name, 
+          classes: [className], 
+          attendance:[], 
+          behaviors:[], 
+          grades:[], 
+          grade: '',
+          parentPhone: phone,
+          avatar: avatar
+      }]);
+  };
+
+  const renderContent = () => {
+      switch (activeTab) {
+          case 'dashboard':
+              return <Dashboard 
+                  students={students} 
+                  teacherInfo={teacherInfo} 
+                  onUpdateTeacherInfo={(i) => setTeacherInfo(prev => ({...prev, ...i}))}
+                  schedule={schedule}
+                  onUpdateSchedule={setSchedule}
+                  onSelectStudent={() => {}} 
+                  onNavigate={handleNavigate}
+                  onOpenSettings={() => setActiveTab('settings')}
+                  periodTimes={periodTimes}
+                  setPeriodTimes={setPeriodTimes}
+                  notificationsEnabled={notificationsEnabled}
+                  onToggleNotifications={handleToggleNotifications}
+                  currentSemester={currentSemester}
+                  onSemesterChange={setCurrentSemester}
+              />;
+          case 'attendance':
+              return <AttendanceTracker students={students} classes={classes} setStudents={setStudents} />;
+          case 'students':
+              return <StudentList 
+                  students={students} 
+                  classes={classes} 
+                  onAddClass={handleAddClass}
+                  onAddStudentManually={handleAddStudent}
+                  onBatchAddStudents={(newS) => setStudents(prev => [...prev, ...newS])}
+                  onUpdateStudent={handleUpdateStudent}
+                  onDeleteStudent={(id) => setStudents(prev => prev.filter(s => s.id !== id))}
+                  onViewReport={(s) => {}}
+                  currentSemester={currentSemester}
+                  onSemesterChange={setCurrentSemester}
+                  onEditClass={(old, newN) => setClasses(p => p.map(c => c === old ? newN : c))}
+                  onDeleteClass={(c) => setClasses(p => p.filter(x => x !== c))}
+              />;
+          case 'grades':
+              return <GradeBook 
+                  students={students} 
+                  classes={classes} 
+                  onUpdateStudent={handleUpdateStudent} 
+                  setStudents={setStudents}
+                  currentSemester={currentSemester}
+                  onSemesterChange={setCurrentSemester}
+                  teacherInfo={teacherInfo}
+              />;
+          case 'reports': return <Reports />;
+          case 'noor': return <NoorPlatform />;
+          case 'guide': return <UserGuide />;
+          case 'settings': return <Settings />;
+          case 'about': return <About />;
+          default: return <Dashboard students={students} teacherInfo={teacherInfo} onUpdateTeacherInfo={() => {}} schedule={schedule} onUpdateSchedule={() => {}} onSelectStudent={() => {}} onNavigate={handleNavigate} onOpenSettings={() => {}} periodTimes={periodTimes} setPeriodTimes={() => {}} notificationsEnabled={false} onToggleNotifications={() => {}} currentSemester={currentSemester} onSemesterChange={setCurrentSemester} />;
+      }
+  };
+
+  // Mobile Bottom Bar Items
+  const mobileNavItems = [
       { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
       { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
       { id: 'students', label: 'الطلاب', icon: Users },
       { id: 'grades', label: 'الدرجات', icon: BarChart3 },
   ];
 
-  // Secondary items
-  const secondaryNavItems = [
-      { id: 'reports_center', label: 'التقارير', icon: FileSpreadsheet },
-      { id: 'settings', label: 'البيانات', icon: SettingsIcon },
-      { id: 'guide', label: 'الدليل', icon: HelpCircle },
-      { id: 'about', label: 'حول', icon: Info },
+  // Desktop Sidebar Items (All inclusive)
+  const desktopNavItems = [
+      { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
+      { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
+      { id: 'students', label: 'الطلاب', icon: Users },
+      { id: 'grades', label: 'الدرجات', icon: BarChart3 },
+      { id: 'reports', label: 'التقارير', icon: FileText },
+      { id: 'noor', label: 'منصة نور', icon: Globe },
+      { id: 'guide', label: 'دليل المستخدم', icon: BookOpen },
+      { id: 'settings', label: 'الإعدادات', icon: SettingsIcon },
+      { id: 'about', label: 'حول التطبيق', icon: Info },
   ];
 
-  // Full Sidebar items
-  const sidebarNavItems = [...mainNavItems, ...secondaryNavItems];
+  const isMoreActive = !mobileNavItems.some(item => item.id === activeTab);
 
   return (
-    <div className={`flex h-[100dvh] overflow-hidden font-sans text-slate-900 dark:text-white ${isLowPower ? 'low-power' : ''}`}>
+    <div className="flex h-screen bg-[#111827] font-sans overflow-hidden text-gray-100">
         
         {/* --- DESKTOP SIDEBAR --- */}
-        <aside className="hidden md:flex flex-col w-64 h-full p-4 shrink-0 relative z-50">
-            <div className="h-full rounded-[2.5rem] glass-heavy flex flex-col overflow-hidden shadow-2xl border border-white/20">
-                {/* Header */}
-                <div className="p-6 pb-2 flex items-center gap-3">
-                    <div className="w-10 h-10 shrink-0 glass-icon rounded-2xl border border-white/30"><BrandLogo className="w-full h-full" showText={false} /></div>
-                    <span className="text-xl font-black text-slate-800 dark:text-white tracking-tight text-glow">راصد</span>
+        <aside className="hidden md:flex w-72 flex-col bg-[#1f2937] border-l border-gray-700 z-50 shadow-2xl transition-all h-full">
+            <div className="p-8 flex items-center gap-4">
+                <div className="w-12 h-12">
+                    <BrandLogo className="w-full h-full" showText={false} />
                 </div>
+                <div>
+                    <h1 className="text-2xl font-black text-white tracking-tight leading-none">راصد</h1>
+                    <span className="text-[10px] font-bold text-indigo-400 tracking-wider">نسخة المعلم</span>
+                </div>
+            </div>
 
-                {/* Navigation */}
-                <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-2 custom-scrollbar">
-                    {sidebarNavItems.map(item => (
+            <div className="px-6 mb-6">
+                <div className="p-4 bg-[#374151] rounded-2xl flex items-center gap-3 border border-gray-600 shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-[#4b5563] flex items-center justify-center overflow-hidden border border-gray-500 shadow-sm shrink-0">
+                         {teacherInfo.avatar ? <img src={teacherInfo.avatar} className="w-full h-full object-cover"/> : <span className="font-black text-gray-300 text-lg">{teacherInfo.name?.[0]}</span>}
+                    </div>
+                    <div className="overflow-hidden">
+                        <p className="text-xs font-bold text-white truncate">{teacherInfo.name || 'مرحباً بك'}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{teacherInfo.school || 'المدرسة'}</p>
+                    </div>
+                </div>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto px-4 space-y-1.5 custom-scrollbar pb-4">
+                {desktopNavItems.map(item => {
+                    const isActive = activeTab === item.id;
+                    return (
                         <button
                             key={item.id}
                             onClick={() => handleNavigate(item.id)}
-                            className={`
-                                w-full flex items-center gap-4 px-4 py-3.5 rounded-[1.2rem] transition-all duration-300 font-bold text-sm relative group
-                                ${activeTab === item.id 
-                                    ? 'glass-card border-white/40 text-slate-900 dark:text-white shadow-[0_0_20px_rgba(255,255,255,0.15)] bg-white/20' 
-                                    : 'text-slate-600 dark:text-white/60 hover:bg-white/10 hover:text-slate-900 dark:hover:text-white'
-                                }
-                            `}
+                            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+                                isActive 
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
+                                : 'text-gray-400 hover:bg-[#374151] hover:text-white'
+                            }`}
                         >
-                            <div className={`w-6 h-6 flex items-center justify-center transition-all ${activeTab === item.id ? 'scale-110 drop-shadow-md' : 'opacity-70'}`}>
-                                <item.icon className="w-5 h-5" />
-                            </div>
-                            <span className="block tracking-wide">{item.label}</span>
-                            {activeTab === item.id && <div className="absolute left-3 w-1.5 h-1.5 bg-indigo-400 dark:bg-white rounded-full shadow-[0_0_10px_currentColor]"></div>}
+                            <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-indigo-400'} transition-colors`} strokeWidth={2.5} />
+                            <span className="font-bold text-sm">{item.label}</span>
+                            {isActive && <div className="mr-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>}
                         </button>
-                    ))}
-                </nav>
+                    );
+                })}
+            </nav>
 
-                {/* Footer Actions */}
-                <div className="p-4 pt-2 space-y-2 bg-transparent">
-                    <button onClick={() => setTheme(isDark ? 'ceramic' : 'vision')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all text-slate-600 dark:text-white/60 hover:bg-white/10 glass-card border-white/10 hover:border-white/20 active:scale-95">
-                        <div className="w-6 h-6 flex items-center justify-center">{isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</div>
-                        <span className="block">{isDark ? 'الوضع النهاري' : 'الوضع الليلي'}</span>
-                    </button>
-                </div>
+            <div className="p-6 text-center border-t border-gray-700">
+                <p className="text-[10px] font-bold text-gray-500">الإصدار 3.6.0</p>
             </div>
         </aside>
 
-        {/* --- MAIN CONTENT --- */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
-            
-            {/* Mobile Header */}
+        {/* --- MAIN CONTENT AREA --- */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#111827]">
+            {/* Main Scroll Container */}
             <div 
-                className="md:hidden px-4 pb-2 flex justify-between items-center z-30 transition-all"
-                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}
+                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-28 md:pb-8 px-4 md:px-8 pt-safe"
+                id="main-scroll-container"
             >
-                <div className="flex items-center gap-2">
-                    <BrandLogo className="w-8 h-8" showText={false} />
-                    <span className="text-lg font-black text-slate-900 dark:text-white tracking-tight">راصد</span>
-                </div>
-            </div>
-
-            {/* Scrollable Area */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 custom-scrollbar scroll-smooth pb-32 md:pb-6">
-                <div className="max-w-7xl mx-auto h-full">
+                <div className="max-w-5xl mx-auto w-full min-h-full">
                     {renderContent()}
                 </div>
             </div>
 
-            {/* --- IPHONE BOTTOM BAR (Mobile Only) --- */}
-            <div 
-                className="md:hidden fixed left-4 right-4 z-50 transition-all duration-300 ease-out"
-                style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
-            >
-                <div className="glass-heavy rounded-[2rem] p-1.5 flex justify-between items-center shadow-2xl border border-white/20 backdrop-blur-xl relative">
-                    {mainNavItems.map(item => (
+            {/* --- MOBILE TAB BAR --- */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-[60px] bg-[#1f2937] rounded-t-[2.5rem] shadow-[0_-10px_30px_rgba(0,0,0,0.4)] flex justify-around items-end pb-2 border-t border-white/5">
+                {mobileNavItems.map((item) => {
+                    const isActive = activeTab === item.id;
+                    return (
                         <button
                             key={item.id}
                             onClick={() => handleNavigate(item.id)}
-                            className={`flex-1 flex flex-col items-center justify-center py-3 rounded-[1.5rem] transition-all duration-300 relative overflow-hidden ${activeTab === item.id ? 'text-indigo-600 dark:text-white' : 'text-slate-400 dark:text-white/40 hover:text-slate-600'}`}
+                            className="relative w-full h-full flex flex-col items-center justify-end group pb-1"
                         >
-                            {activeTab === item.id && (
-                                <div className="absolute inset-0 bg-white/20 shadow-inner rounded-[1.5rem]"></div>
-                            )}
-                            <item.icon className={`w-6 h-6 mb-0.5 relative z-10 transition-transform ${activeTab === item.id ? 'scale-110 -translate-y-0.5' : ''}`} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                            <span className="text-[9px] font-black relative z-10">{item.label}</span>
-                        </button>
-                    ))}
-                    
-                    {/* More Button */}
-                    <button
-                        onClick={() => setShowMoreMenu(true)}
-                        className={`flex-1 flex flex-col items-center justify-center py-3 rounded-[1.5rem] transition-all duration-300 ${['reports_center', 'settings', 'guide', 'about'].includes(activeTab) ? 'text-indigo-600 dark:text-white bg-white/10' : 'text-slate-400 dark:text-white/40'}`}
-                    >
-                        <Grid className="w-6 h-6 mb-0.5" />
-                        <span className="text-[9px] font-black">المزيد</span>
-                    </button>
-                </div>
-            </div>
+                            <span 
+                                className={`
+                                    absolute top-0 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+                                    ${isActive 
+                                        ? 'w-14 h-14 bg-emerald-500 rounded-full -mt-6 border-[6px] border-[#111827] shadow-[0_10px_20px_rgba(16,185,129,0.4)] flex items-center justify-center transform scale-100 opacity-100' 
+                                        : 'w-0 h-0 bg-transparent border-0 opacity-0 scale-0 translate-y-12'
+                                    }
+                                `}
+                            >
+                               {isActive && <item.icon className="w-6 h-6 text-white animate-in fade-in zoom-in duration-300" strokeWidth={2.5} />}
+                            </span>
 
-            {/* --- MOBILE MORE MENU SHEET --- */}
-            <Modal isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} className="mb-20 rounded-[2.5rem] max-w-sm w-full mx-4">
-                <div className="grid grid-cols-2 gap-3">
-                    {secondaryNavItems.map(item => (
-                        <button
-                            key={item.id}
-                            onClick={() => handleNavigate(item.id)}
-                            className={`p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white border-transparent shadow-lg' : 'glass-card border-white/10 text-slate-700 dark:text-white hover:bg-white/10'}`}
-                        >
-                            <div className={`p-3 rounded-full ${activeTab === item.id ? 'bg-white/20' : 'glass-icon'}`}>
-                                <item.icon className="w-6 h-6" />
-                            </div>
-                            <span className="font-black text-sm">{item.label}</span>
+                            <span 
+                                className={`
+                                    transition-all duration-300 mb-1 group-hover:scale-110 group-active:scale-95
+                                    ${isActive 
+                                        ? 'opacity-0 scale-0 translate-y-10' 
+                                        : 'opacity-100 scale-100 text-gray-500 group-hover:text-emerald-400'
+                                    }
+                                `}
+                            >
+                                <item.icon className="w-6 h-6" strokeWidth={2} />
+                            </span>
+
+                            <span 
+                                className={`
+                                    text-[10px] font-black transition-all duration-300 
+                                    ${isActive ? 'translate-y-1 text-white opacity-100' : 'text-gray-500 opacity-80 group-hover:text-indigo-400'}
+                                `}
+                            >
+                                {item.label}
+                            </span>
                         </button>
-                    ))}
-                </div>
+                    );
+                })}
                 
-                <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-3">
-                    <button onClick={() => setTheme(isDark ? 'ceramic' : 'vision')} className="p-3 glass-card rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-white/70">
-                        {isDark ? <Sun className="w-4 h-4"/> : <Moon className="w-4 h-4"/>}
-                        {isDark ? 'نهاري' : 'ليلي'}
-                    </button>
-                    <button onClick={toggleLowPower} className={`p-3 glass-card rounded-xl flex items-center justify-center gap-2 text-xs font-bold ${isLowPower ? 'text-amber-500 border-amber-500/30' : 'text-slate-600 dark:text-white/70'}`}>
-                        <Zap className={`w-4 h-4 ${isLowPower ? 'fill-amber-500' : ''}`}/>
-                        توفير طاقة
-                    </button>
-                </div>
-            </Modal>
+                <button
+                    onClick={() => setShowMoreMenu(true)}
+                    className="relative w-full h-full flex flex-col items-center justify-end group pb-1"
+                >
+                    <span 
+                        className={`
+                            absolute top-0 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+                            ${isMoreActive 
+                                ? 'w-14 h-14 bg-indigo-500 rounded-full -mt-6 border-[6px] border-[#111827] shadow-[0_10px_20px_rgba(99,102,241,0.4)] flex items-center justify-center transform scale-100 opacity-100' 
+                                : 'w-0 h-0 bg-transparent border-0 opacity-0 scale-0 translate-y-12'
+                            }
+                        `}
+                    >
+                       {isMoreActive && <Grid className="w-6 h-6 text-white animate-in fade-in zoom-in duration-300" strokeWidth={2.5} />}
+                    </span>
 
+                    <span 
+                        className={`
+                            transition-all duration-300 mb-1 group-hover:scale-110 group-active:scale-95
+                            ${isMoreActive 
+                                ? 'opacity-0 scale-0 translate-y-10' 
+                                : 'opacity-100 scale-100 text-gray-500 group-hover:text-indigo-400'
+                            }
+                        `}
+                    >
+                        <Grid className="w-6 h-6" strokeWidth={2} />
+                    </span>
+
+                    <span 
+                        className={`
+                            text-[10px] font-black transition-all duration-300 
+                            ${isMoreActive ? 'translate-y-1 text-white opacity-100' : 'text-gray-500 opacity-80 group-hover:text-indigo-400'}
+                        `}
+                    >
+                        المزيد
+                    </span>
+                </button>
+            </div>
         </main>
+
+        <Modal isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} className="max-w-md rounded-[2rem] mb-28 md:hidden">
+            <div className="text-center mb-6">
+                <div className="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-4"></div>
+                <h3 className="font-black text-white text-lg">القائمة الكاملة</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => handleNavigate('reports')} className="p-4 bg-indigo-900/30 rounded-2xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform border border-indigo-500/30 aspect-square shadow-sm shimmer-hover">
+                    <FileText className="w-7 h-7 text-indigo-400" />
+                    <span className="font-bold text-[10px] text-indigo-200">التقارير</span>
+                </button>
+                
+                <button onClick={() => handleNavigate('noor')} className="p-4 bg-cyan-900/30 rounded-2xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform border border-cyan-500/30 aspect-square shadow-sm shimmer-hover">
+                    <Globe className="w-7 h-7 text-cyan-400" />
+                    <span className="font-bold text-[10px] text-cyan-200">منصة نور</span>
+                </button>
+
+                <button onClick={() => handleNavigate('settings')} className="p-4 bg-gray-700/50 rounded-2xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform border border-gray-600 aspect-square shadow-sm shimmer-hover">
+                    <SettingsIcon className="w-7 h-7 text-gray-400" />
+                    <span className="font-bold text-[10px] text-gray-200">الإعدادات</span>
+                </button>
+
+                <button onClick={() => handleNavigate('guide')} className="p-4 bg-amber-900/30 rounded-2xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform border border-amber-500/30 aspect-square shadow-sm shimmer-hover">
+                    <BookOpen className="w-7 h-7 text-amber-400" />
+                    <span className="font-bold text-[10px] text-amber-200">الدليل</span>
+                </button>
+
+                <button onClick={() => handleNavigate('about')} className="p-4 bg-purple-900/30 rounded-2xl flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform border border-purple-500/30 aspect-square shadow-sm shimmer-hover">
+                    <Info className="w-7 h-7 text-purple-400" />
+                    <span className="font-bold text-[10px] text-purple-200">حول التطبيق</span>
+                </button>
+            </div>
+        </Modal>
+
     </div>
   );
 };
 
 const App: React.FC = () => {
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AppProvider>
-          <AppContent />
-        </AppProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ThemeProvider>
   );
 };
 
