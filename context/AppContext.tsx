@@ -44,8 +44,13 @@ const DB_FILENAME = 'rased_database_v2.json';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   
-  // --- Initial States (Empty) ---
-  const [currentSemester, setCurrentSemester] = useState<'1' | '2'>('1');
+  // --- Initial States ---
+  
+  const currentMonth = new Date().getMonth();
+  const defaultSemester = (currentMonth >= 1 && currentMonth <= 7) ? '2' : '1';
+
+  const [currentSemester, setCurrentSemester] = useState<'1' | '2'>(defaultSemester);
+  
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
   const [groups, setGroups] = useState<Group[]>([
@@ -63,34 +68,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     Array(8).fill(null).map((_, i) => ({ periodNumber: i + 1, startTime: '', endTime: '' }))
   );
   
-  // Calculate smart default for Academic Year
   const now = new Date();
   const defaultAcademicYear = now.getMonth() < 7 ? `${now.getFullYear() - 1} / ${now.getFullYear()}` : `${now.getFullYear()} / ${now.getFullYear() + 1}`;
 
   const [teacherInfo, setTeacherInfo] = useState<TeacherInfo>({ 
       name: '', school: '', subject: '', governorate: '', avatar: '', stamp: '', ministryLogo: '', academicYear: defaultAcademicYear 
   });
+
+  // Start with EMPTY tools to strictly follow what the user adds or imports
   const [assessmentTools, setAssessmentTools] = useState<AssessmentTool[]>([]);
   
-  // Default Certificate Settings
   const [certificateSettings, setCertificateSettings] = useState<CertificateSettings>({
       title: 'شهادة تفوق دراسي',
       bodyText: 'تتشرف إدارة المدرسة بمنح الطالب هذه الشهادة نظير تفوقه وتميزه في المادة',
       showDefaultDesign: true
   });
 
-  // Ref to track if we are in the initial load phase to prevent overwriting with empty data
   const isInitialLoad = useRef(true);
   const saveTimeoutRef = useRef<any>(null);
 
-  // --- 1. LOAD DATA (One time on mount) ---
   useEffect(() => {
     const loadData = async () => {
         try {
             let data: any = null;
-            let loadedFromFS = false;
 
-            // A. Try loading from FileSystem (Preferred)
             if (Capacitor.isNativePlatform()) {
                 try {
                     const result = await Filesystem.readFile({
@@ -99,18 +100,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         encoding: Encoding.UTF8
                     });
                     data = JSON.parse(result.data as string);
-                    loadedFromFS = true;
-                    console.log('📂 Data loaded from FileSystem');
                 } catch (e) {
-                    console.log('📂 No FileSystem data found, checking LocalStorage...');
+                    console.log('📂 No FileSystem data found');
                 }
             }
 
-            // B. Fallback/Migration from LocalStorage
             if (!data) {
                 const lsStudents = localStorage.getItem('studentData');
                 if (lsStudents) {
-                    console.log('🔄 Migrating data from LocalStorage...');
                     data = {
                         students: JSON.parse(lsStudents),
                         classes: JSON.parse(localStorage.getItem('classesData') || '[]'),
@@ -118,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         schedule: JSON.parse(localStorage.getItem('scheduleData') || '[]'),
                         periodTimes: JSON.parse(localStorage.getItem('periodTimes') || '[]'),
                         assessmentTools: JSON.parse(localStorage.getItem('assessmentTools') || '[]'),
-                        currentSemester: localStorage.getItem('currentSemester') || '1',
+                        currentSemester: localStorage.getItem('currentSemester'),
                         teacherInfo: {
                             name: localStorage.getItem('teacherName') || '',
                             school: localStorage.getItem('schoolName') || '',
@@ -134,14 +131,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
 
-            // C. Apply Data to State
             if (data) {
                 if(data.students) setStudents(data.students);
                 if(data.classes) setClasses(data.classes);
                 if(data.groups && data.groups.length > 0) setGroups(data.groups);
                 if(data.schedule && data.schedule.length > 0) setSchedule(data.schedule);
                 if(data.periodTimes && data.periodTimes.length > 0) setPeriodTimes(data.periodTimes);
-                if(data.assessmentTools) setAssessmentTools(data.assessmentTools);
+                if(data.assessmentTools && data.assessmentTools.length > 0) setAssessmentTools(data.assessmentTools);
                 if(data.currentSemester) setCurrentSemester(data.currentSemester);
                 if(data.teacherInfo) setTeacherInfo(prev => ({...prev, ...data.teacherInfo}));
                 if(data.certificateSettings) setCertificateSettings(prev => ({...prev, ...data.certificateSettings}));
@@ -151,21 +147,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.error('Failed to load data:', error);
         } finally {
             setIsDataLoaded(true);
-            setTimeout(() => { isInitialLoad.current = false; }, 1000); // Allow state to settle
+            setTimeout(() => { isInitialLoad.current = false; }, 1000);
         }
     };
 
     loadData();
   }, []);
 
-  // --- 2. SAVE DATA (Debounced on change) ---
   useEffect(() => {
     if (isInitialLoad.current) return;
-
-    // Clear previous timeout
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-    // Set new timeout (Debounce 2 seconds to avoid excessive writes)
     saveTimeoutRef.current = setTimeout(async () => {
         const dataToSave = {
             version: '3.3.0',
@@ -183,7 +175,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const jsonString = JSON.stringify(dataToSave);
 
-        // 1. Save to FileSystem (Native)
         if (Capacitor.isNativePlatform()) {
             try {
                 await Filesystem.writeFile({
@@ -192,16 +183,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     directory: Directory.Data,
                     encoding: Encoding.UTF8
                 });
-                console.log('💾 Saved to FileSystem');
             } catch (e) {
                 console.error('Save to FS failed', e);
             }
         } 
         
-        // 2. Backup to LocalStorage (Web/Fallback) - Only essential text data if possible, but for now full dump for web compatibility
         try {
-            // Check size before saving to LS to avoid quota error crashing the app
-            if (jsonString.length < 4500000) { // ~4.5MB limit safety
+            if (jsonString.length < 4500000) {
                 localStorage.setItem('studentData', JSON.stringify(students));
                 localStorage.setItem('classesData', JSON.stringify(classes));
                 localStorage.setItem('groupsData', JSON.stringify(groups));
@@ -212,10 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 localStorage.setItem('teacherName', teacherInfo.name);
                 localStorage.setItem('academicYear', teacherInfo.academicYear || '');
                 localStorage.setItem('certificateSettings', JSON.stringify(certificateSettings));
-                // Save heavy images only if space permits or optimize later
                 localStorage.setItem('teacherAvatar', teacherInfo.avatar || '');
-            } else {
-                console.warn('⚠️ Data too large for LocalStorage, relying on FileSystem only.');
             }
         } catch (e) {
             console.error('LocalStorage Quota Exceeded');
