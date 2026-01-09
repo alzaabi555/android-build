@@ -30,24 +30,55 @@ jobs:
       - name: Build Web Assets
         run: npm run build
 
-      - name: Sync Android Platform
+      - name: Sync/Repair Android Platform
         run: |
-          # تم إزالة أمر الحذف (rm -rf android) للحفاظ على التعديلات المخصصة في مجلد الأندرويد
-          # مثل AndroidManifest.xml و network_security_config.xml
+          echo "Checking Android platform integrity..."
           
-          echo "Syncing Capacitor with Android platform..."
-          # إذا لم يكن المجلد موجوداً (لأول مرة)، نقوم بإضافته
-          if [ ! -d "android" ]; then
+          # Check if android folder exists but is corrupted (missing build.gradle OR settings.gradle)
+          if [ -d "android" ] && ( [ ! -f "android/build.gradle" ] || [ ! -f "android/settings.gradle" ] ); then
+            echo "⚠️ Android folder exists but is corrupted (missing gradle files). Initiating repair..."
+            
+            # 1. Create backup directory for custom files
+            mkdir -p temp_backup/app/src/main/res/xml
+            
+            # 2. Backup known custom configuration files
+            echo "Backing up custom files..."
+            [ -f "android/app/src/main/AndroidManifest.xml" ] && cp "android/app/src/main/AndroidManifest.xml" "temp_backup/app/src/main/"
+            [ -f "android/app/src/main/res/xml/network_security_config.xml" ] && cp "android/app/src/main/res/xml/network_security_config.xml" "temp_backup/app/src/main/res/xml/"
+            [ -f "android/app/src/main/res/xml/data_extraction_rules.xml" ] && cp "android/app/src/main/res/xml/data_extraction_rules.xml" "temp_backup/app/src/main/res/xml/"
+            [ -f "android/app/src/main/res/xml/file_paths.xml" ] && cp "android/app/src/main/res/xml/file_paths.xml" "temp_backup/app/src/main/res/xml/"
+            
+            # 3. Remove the broken platform folder
+            echo "Removing broken platform..."
+            rm -rf android
+            
+            # 4. Add Android platform cleanly
+            echo "Adding Android platform..."
             npx cap add android
+            
+            # 5. Restore custom files
+            echo "Restoring custom files..."
+            [ -f "temp_backup/app/src/main/AndroidManifest.xml" ] && cp "temp_backup/app/src/main/AndroidManifest.xml" "android/app/src/main/"
+            [ -f "temp_backup/app/src/main/res/xml/network_security_config.xml" ] && cp "temp_backup/app/src/main/res/xml/network_security_config.xml" "android/app/src/main/res/xml/"
+            [ -f "temp_backup/app/src/main/res/xml/data_extraction_rules.xml" ] && cp "temp_backup/app/src/main/res/xml/data_extraction_rules.xml" "android/app/src/main/res/xml/"
+            [ -f "temp_backup/app/src/main/res/xml/file_paths.xml" ] && cp "temp_backup/app/src/main/res/xml/file_paths.xml" "android/app/src/main/res/xml/"
+            
+            # 6. Cleanup backup
+            rm -rf temp_backup
+            echo "✅ Android platform repaired successfully."
+          elif [ ! -d "android" ]; then
+            echo "Android folder missing. Adding platform..."
+            npx cap add android
+          else
+            echo "Android platform appears valid."
           fi
           
-          # نقوم بالمزامنة فقط لتحديث ملفات الويب والـ plugins
+          # Final Sync to ensure web assets are up to date
+          echo "Syncing Capacitor..."
           npx cap sync android
 
       - name: Create Dummy google-services.json
         run: |
-          # إنشاء ملف google-services.json وهمي لتجنب فشل البناء في حال كان مطلوباً من قبل الإضافات
-          # يتم الإنشاء فقط إذا لم يكن الملف موجوداً بالفعل
           if [ ! -f "android/app/google-services.json" ]; then
             echo "Creating dummy google-services.json to prevent build failure..."
             mkdir -p android/app
@@ -90,10 +121,9 @@ jobs:
           cd android
           if [ -f "gradlew" ]; then
             chmod +x gradlew
-            # إضافة --refresh-dependencies لإجبار إعادة تحميل المكتبات وتجنب أخطاء 403
             ./gradlew assembleDebug --refresh-dependencies --stacktrace
           else
-            echo "Gradlew file not found. Falling back to system Gradle..."
+            echo "Gradlew missing. Falling back to system Gradle..."
             gradle assembleDebug --refresh-dependencies --stacktrace
           fi
 
