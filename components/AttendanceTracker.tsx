@@ -275,7 +275,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ students, classes
                             <div 
                                 key={student.id} 
                                 className={`
-                                    group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden shimmer-hover
+                                    group flex items-center justify-between p-4 rounded-2xl border border-blue-500 transition-all duration-300 relative overflow-hidden shimmer-hover
                                     ${status 
                                         ? 'bg-[#374151] border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
                                         : 'bg-[#1f2937] border-indigo-500/40 hover:bg-[#374151] hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10'

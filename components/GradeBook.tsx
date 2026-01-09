@@ -57,7 +57,7 @@ const GradeBook: React.FC<GradeBookProps> = ({
 
   const styles = {
       card: `
-        glass-card border border-indigo-500/40 rounded-[1.8rem] 
+        glass-card border border-blue-500 rounded-[1.8rem] 
         hover:border-indigo-400/50 hover:shadow-lg hover:shadow-indigo-500/20 hover:-translate-y-1 hover:bg-[#374151]
         transition-all duration-300 relative overflow-hidden backdrop-blur-md bg-[#1f2937]
       `,

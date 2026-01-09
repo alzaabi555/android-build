@@ -247,9 +247,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             
             {/* 1. Top Section: Teacher Profile Card (Sticky Header) */}
             {/* Removed negative margins to prevent overlap with status bar */}
-            <div className="sticky top-0 z-40 bg-[#111827]">
-                <div className="glass-heavy bg-[#1f2937] p-4 md:p-6 pt-4 relative overflow-hidden rounded-b-[2rem] border-b border-gray-700 group">
-                    <div className="relative z-10 flex items-center justify-between">
+            <div className="sticky top-0 z-40 bg-[#111827] -mx-4 -mt-4">
+                <div className="glass-heavy bg-[#1f2937] p-4 md:p-6 pt-safe relative overflow-hidden rounded-b-[2rem] border-b border-gray-700 group">
+                    <div className="relative z-10 flex items-center justify-between mt-4">
                         <button 
                             onClick={() => setShowEditModal(true)}
                             className="glass-icon p-3 rounded-2xl text-gray-300 hover:bg-gray-700 transition-all absolute left-0 top-0 border border-gray-600"

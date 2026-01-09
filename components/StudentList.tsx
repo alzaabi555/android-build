@@ -45,7 +45,7 @@ const StudentItem = React.memo(({ student, onAction, currentSemester }: {
         <motion.div 
             initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
             className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 mb-3 rounded-[1.5rem] gap-4 sm:gap-0 relative overflow-hidden transition-all duration-300
-            glass-card bg-[#1f2937] hover:bg-[#374151] shadow-sm hover:shadow-md border border-indigo-500/40 shimmer-hover"
+            glass-card bg-[#1f2937] hover:bg-[#374151] shadow-sm hover:shadow-md border border-blue-500 shimmer-hover"
         >
             {/* Cleaner visual separation - Left Border Accent based on grade */}
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${totalScore >= 90 ? 'bg-emerald-500' : totalScore >= 50 ? 'bg-indigo-500' : 'bg-rose-500'}`}></div>
